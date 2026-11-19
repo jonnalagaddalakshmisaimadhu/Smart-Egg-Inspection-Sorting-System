@@ -10,7 +10,9 @@ __pycache__/
 *$py.class
 *.so
 
-# Large Media & Raw Datasets (Keep data structure tracked via .gitkeep)
+# Large Media & Raw Datasets (Keep data structure tracked via .gitkeep and .dvc)
+*.dvc
+!data/**/*.dvc
 data/raw/*
 !data/raw/.gitkeep
 data/extracted/*
@@ -19,6 +21,8 @@ data/annotated/*
 !data/annotated/.gitkeep
 data/datasets/*
 !data/datasets/.gitkeep
+!data/datasets/*.dvc
+
 
 # Model weights and artifacts
 models/weights/*.pt
