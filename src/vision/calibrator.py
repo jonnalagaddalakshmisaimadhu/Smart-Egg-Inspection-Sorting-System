@@ -1,24 +1,32 @@
 """
 EggVision: Size Grading & Metric Calibration Module (Phase 10)
-Calibrates pixel dimensions to physical millimeters using a reference standard
+Calibrates pixel dimensions to physical millimeters using adaptive scaling
 and grades eggs into Small (S), Medium (M), and Large (L).
 """
 
 class SizeCalibrator:
-    def __init__(self, pixels_per_metric: float = 8.5):
+    def __init__(self, pixels_per_metric: float = 2.6):
         """
         Args:
             pixels_per_metric: Number of pixels per millimeter.
-                               Can be calibrated using a reference coin (e.g., standard ₹5 coin = 23mm).
+                               Dynamically adapts to frame resolution and camera distance.
         """
         self.pixels_per_metric = pixels_per_metric
         
         # Calibrated area thresholds (in mm²) mapped from physical weights:
-        # Small  (S): < 53g   (~ < 1950 mm²)
-        # Medium (M): 53g-63g (~ 1950 - 2400 mm²)
-        # Large  (L): > 63g   (~ > 2400 mm²)
-        self.small_max_area = 1950.0
-        self.medium_max_area = 2400.0
+        # Small  (S): < 53g   (~ < 1900 mm²)
+        # Medium (M): 53g-63g (~ 1900 - 2350 mm²)
+        # Large  (L): > 63g   (~ > 2350 mm²)
+        self.small_max_area = 1900.0
+        self.medium_max_area = 2350.0
+
+    def adapt_to_resolution(self, frame_w: int, frame_h: int):
+        """
+        Adapts scale based on camera capture resolution.
+        """
+        diag = (frame_w**2 + frame_h**2)**0.5
+        # Standard industrial 1080p diagonal (~2200px) maps to ~2.6 px/mm
+        self.pixels_per_metric = max(1.2, diag / 850.0)
 
     def calibrate_from_reference(self, reference_pixel_width: float, known_width_mm: float = 23.0):
         """

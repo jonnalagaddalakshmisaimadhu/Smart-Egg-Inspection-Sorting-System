@@ -1,8 +1,7 @@
 """
-EggVision: Baseline Model Training Script (Phase 6)
-Trains YOLO11 nano on RTX 3050 GPU with native metrics tracking & optional MLflow.
+EggVision: High-Precision Model Training Engine (Phase 6 & 8)
+Trains YOLO11 nano on multi-egg dataset v2 on RTX 3050 GPU.
 Saves the best model checkpoint as models/weights/EggVision.pt.
-Supports automatic resume if training was interrupted.
 """
 
 import os
@@ -10,21 +9,21 @@ import shutil
 from pathlib import Path
 from ultralytics import YOLO
 
-def train_baseline(
-    data_yaml="data/datasets/v1/data.yaml",
+def train_model(
+    data_yaml="data/datasets/v2/data.yaml",
     model_name="yolo11n.pt",
-    epochs=25,
+    epochs=30,
     batch_size=16,
     imgsz=640,
     device=0,
     project_dir="runs/detect",
-    experiment_name="baseline"
+    experiment_name="eggvision_v2"
 ):
     base_dir = Path(__file__).resolve().parent.parent.parent
     data_path = base_dir / data_yaml
     
     print("=" * 65)
-    print("🥚 EggVision: Starting Baseline Model Training (Phase 6)")
+    print("🥚 EggVision: Training Multi-Egg Vision Model (v2)")
     print("=" * 65)
     print(f"📊 Dataset Config : {data_path}")
     print(f"🚀 Base Model     : {model_name}")
@@ -33,13 +32,12 @@ def train_baseline(
     print("=" * 65)
 
     if not data_path.exists():
-        raise FileNotFoundError(f"data.yaml not found at {data_path}. Please run prepare_dataset.py first.")
+        raise FileNotFoundError(f"data.yaml not found at {data_path}")
 
     last_pt = base_dir / project_dir / experiment_name / "weights" / "last.pt"
 
-    # Check if a previous run was interrupted and can be resumed
     if last_pt.exists():
-        print(f"🔄 Found checkpoint from previous run! Resuming from: {last_pt}")
+        print(f"🔄 Resuming previous run from: {last_pt}")
         model = YOLO(str(last_pt))
         results = model.train(resume=True)
     else:
@@ -55,7 +53,10 @@ def train_baseline(
             workers=2,
             exist_ok=True,
             verbose=True,
-            plots=True
+            plots=True,
+            mosaic=1.0,
+            mixup=0.1,
+            close_mosaic=5
         )
 
     # Evaluate validation metrics
@@ -76,7 +77,7 @@ def train_baseline(
         print(f"\n💾 Successfully saved best model to: {best_pt_dest}")
 
     print("\n" + "=" * 65)
-    print("🎯 Phase 6 Baseline Evaluation Results:")
+    print("🎯 Multi-Egg Vision Evaluation Results:")
     print(f"   - mAP @ 0.50     : {map50:.4f}")
     print(f"   - mAP @ 0.50:0.95: {map50_95:.4f}")
     print(f"   - Model Saved at : {best_pt_dest}")
@@ -84,4 +85,4 @@ def train_baseline(
     print("=" * 65)
 
 if __name__ == "__main__":
-    train_baseline()
+    train_model()

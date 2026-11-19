@@ -22,6 +22,8 @@ data/annotated/*
 data/datasets/*
 !data/datasets/.gitkeep
 !data/datasets/*.dvc
+data/uploads/
+!data/uploads/.gitkeep
 
 
 # Model weights and artifacts

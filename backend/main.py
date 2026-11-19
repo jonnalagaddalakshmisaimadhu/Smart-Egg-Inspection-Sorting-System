@@ -65,7 +65,7 @@ def get_pipeline():
     if pipeline is None:
         pipeline = EggVisionPipeline(
             model_path="models/weights/EggVision.pt",
-            conf_threshold=0.30,
+            conf_threshold=0.42,
             line_y=320,
             enable_line_crossing=False,
             device=0
@@ -116,7 +116,10 @@ def get_frame_from_source():
             ret, frame = uploaded_cap.read()
             
         if ret:
-            return cv2.resize(frame, (640, 640))
+            h, w = frame.shape[:2]
+            target_w = 960
+            target_h = int(h * (target_w / w))
+            return cv2.resize(frame, (target_w, target_h))
         else:
             active_source_mode = "simulated"
 
@@ -126,7 +129,10 @@ def get_frame_from_source():
             
         ret, frame = webcam_cap.read()
         if ret:
-            return cv2.resize(frame, (640, 640))
+            h, w = frame.shape[:2]
+            target_w = 960
+            target_h = int(h * (target_w / w))
+            return cv2.resize(frame, (target_w, target_h))
 
     return simulator.get_next_frame()
 

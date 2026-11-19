@@ -1,7 +1,7 @@
 """
-EggVision: Core Vision Pipeline Engine (Phases 9 & 10 Integration)
-Universal detection, ByteTrack tracking, Size Grading, and Live HUD Rendering.
-Instantly displays bounding boxes, sizing, and metrics on all visible eggs.
+EggVision: High-Precision Vision Pipeline Engine (Phases 9 & 10 Integration)
+Multi-egg object detection, ByteTrack tracking, Size Grading, and Live HUD Rendering.
+Instantly displays tight bounding boxes, sizing, and metrics on all visible eggs.
 """
 
 import sys
@@ -25,10 +25,10 @@ class EggVisionPipeline:
     def __init__(
         self,
         model_path="models/weights/EggVision.pt",
-        conf_threshold=0.30,
+        conf_threshold=0.42,
         line_y=320,
         enable_line_crossing=False,
-        pixels_per_metric=8.5,
+        pixels_per_metric=2.6,
         device=0
     ):
         base_dir = Path(__file__).resolve().parent.parent.parent
@@ -43,14 +43,14 @@ class EggVisionPipeline:
         self.line_y = line_y
         self.device = device
 
-        # Initialize Calibrator and Tracker (Universal Instant Mode by default)
+        # Initialize Calibrator and Tracker
         self.calibrator = SizeCalibrator(pixels_per_metric=pixels_per_metric)
         self.tracker = EggTracker(line_y=line_y, enable_line_crossing=enable_line_crossing)
 
         # Supervision Annotators
         self.box_annotator = sv.BoxAnnotator(thickness=2)
         self.label_annotator = sv.LabelAnnotator(
-            text_scale=0.55,
+            text_scale=0.52,
             text_thickness=1,
             text_padding=4
         )
@@ -61,11 +61,12 @@ class EggVisionPipeline:
 
     def process_frame(self, frame: np.ndarray):
         """
-        Processes any video frame instantly.
+        Processes any video frame with multi-egg localization and defect sorting.
         Returns:
             annotated_frame (np.ndarray), current_stats (dict)
         """
         h, w = frame.shape[:2]
+        self.calibrator.adapt_to_resolution(w, h)
         
         # Calculate FPS
         current_time = time.time()
@@ -87,6 +88,21 @@ class EggVisionPipeline:
         # Convert to Supervision Detections
         detections = sv.Detections.from_ultralytics(results)
 
+        # Filter out oversized or degenerate bounding boxes (e.g. bowls, tables, backgrounds)
+        if len(detections) > 0:
+            valid_indices = []
+            frame_area = w * h
+            for i, xyxy in enumerate(detections.xyxy):
+                bw = xyxy[2] - xyxy[0]
+                bh = xyxy[3] - xyxy[1]
+                box_area = bw * bh
+                # Single egg is never > 30% of total frame or > 60% of frame dimensions
+                if box_area < (0.30 * frame_area) and (bw < 0.60 * w) and (bh < 0.60 * h) and bw > 15 and bh > 15:
+                    valid_indices.append(i)
+
+            if len(valid_indices) < len(detections):
+                detections = detections[valid_indices]
+
         # 2. Size Grading & Labels for all visible eggs
         size_grades = []
         labels = []
@@ -101,21 +117,22 @@ class EggVisionPipeline:
                 grade = measurement["grade"]
                 size_grades.append(grade)
 
-                cls_name = self.tracker.class_names.get(int(cls_id), "unknown").upper()
+                cls_name = self.tracker.class_names.get(int(cls_id), "good").upper()
                 label_str = f"#{tracker_id} {cls_name} [{grade}] {conf:.2f}"
                 labels.append(label_str)
         else:
             size_grades = ["M"] * len(detections)
 
-        # 3. Update Tracker Registry (Instant detection & tallies)
+        # 3. Update Tracker Registry
         self.tracker.update_and_count(detections, size_grades)
 
         # 4. Visual Annotations on every detected egg
         annotated_frame = frame.copy()
 
         # Draw inspection datum line as reference
-        cv2.line(annotated_frame, (0, self.line_y), (w, self.line_y), (50, 100, 180), 1)
-        cv2.putText(annotated_frame, "INSPECTION DATUM LINE", (12, self.line_y - 6),
+        datum_y = min(self.line_y, h - 30)
+        cv2.line(annotated_frame, (0, datum_y), (w, datum_y), (50, 100, 180), 1)
+        cv2.putText(annotated_frame, "INSPECTION DATUM LINE", (12, datum_y - 6),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (80, 140, 220), 1)
 
         # Draw boxes and labels immediately on all eggs
@@ -158,6 +175,6 @@ class EggVisionPipeline:
         # Immediate visual alert if ANY cracked egg is in frame right now
         if active_cracked > 0:
             cv2.putText(annotated_frame, f"CRACKED DEFECT VISIBLE ({active_cracked})", 
-                        (w - 280, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 255), 2)
+                        (w - 290, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 0, 255), 2)
 
         return annotated_frame, stats
