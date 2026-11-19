@@ -1,6 +1,7 @@
 """
 EggVision: Core Vision Pipeline Engine (Phases 9 & 10 Integration)
-Combines YOLO detection, ByteTrack tracking, Size Grading, and Live HUD Rendering.
+Universal detection, ByteTrack tracking, Size Grading, and Live HUD Rendering.
+Instantly displays bounding boxes, sizing, and metrics on all visible eggs.
 """
 
 import sys
@@ -24,8 +25,9 @@ class EggVisionPipeline:
     def __init__(
         self,
         model_path="models/weights/EggVision.pt",
-        conf_threshold=0.35,
+        conf_threshold=0.30,
         line_y=320,
+        enable_line_crossing=False,
         pixels_per_metric=8.5,
         device=0
     ):
@@ -41,14 +43,14 @@ class EggVisionPipeline:
         self.line_y = line_y
         self.device = device
 
-        # Initialize Calibrator and Tracker
+        # Initialize Calibrator and Tracker (Universal Instant Mode by default)
         self.calibrator = SizeCalibrator(pixels_per_metric=pixels_per_metric)
-        self.tracker = EggTracker(line_y=line_y)
+        self.tracker = EggTracker(line_y=line_y, enable_line_crossing=enable_line_crossing)
 
         # Supervision Annotators
         self.box_annotator = sv.BoxAnnotator(thickness=2)
         self.label_annotator = sv.LabelAnnotator(
-            text_scale=0.5,
+            text_scale=0.55,
             text_thickness=1,
             text_padding=4
         )
@@ -59,7 +61,7 @@ class EggVisionPipeline:
 
     def process_frame(self, frame: np.ndarray):
         """
-        Processes a single video frame through detection, sizing, and tracking.
+        Processes any video frame instantly.
         Returns:
             annotated_frame (np.ndarray), current_stats (dict)
         """
@@ -85,7 +87,7 @@ class EggVisionPipeline:
         # Convert to Supervision Detections
         detections = sv.Detections.from_ultralytics(results)
 
-        # 2. Size Grading & Labels
+        # 2. Size Grading & Labels for all visible eggs
         size_grades = []
         labels = []
         
@@ -105,18 +107,18 @@ class EggVisionPipeline:
         else:
             size_grades = ["M"] * len(detections)
 
-        # 3. Update Tracker Registry & Check Virtual Line Crossing
+        # 3. Update Tracker Registry (Instant detection & tallies)
         self.tracker.update_and_count(detections, size_grades)
 
-        # 4. Visual Annotations
+        # 4. Visual Annotations on every detected egg
         annotated_frame = frame.copy()
-        
-        # Draw virtual counting line across the frame
-        cv2.line(annotated_frame, (0, self.line_y), (w, self.line_y), (0, 255, 255), 2)
-        cv2.putText(annotated_frame, "INSPECTION & COUNTING LINE", (w - 260, self.line_y - 8),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1)
 
-        # Draw boxes and labels
+        # Draw inspection datum line as reference
+        cv2.line(annotated_frame, (0, self.line_y), (w, self.line_y), (50, 100, 180), 1)
+        cv2.putText(annotated_frame, "INSPECTION DATUM LINE", (12, self.line_y - 6),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (80, 140, 220), 1)
+
+        # Draw boxes and labels immediately on all eggs
         if len(detections) > 0:
             annotated_frame = self.box_annotator.annotate(
                 scene=annotated_frame,
@@ -133,25 +135,29 @@ class EggVisionPipeline:
         stats = self.tracker.get_summary()
         stats["fps"] = round(self.fps, 1)
 
-        total = stats["total_passed"]
-        cracked = stats["cracked"]
-        good = stats["good"]
+        total_unique = stats["total_passed"]
+        cracked_unique = stats["cracked"]
+        good_unique = stats["good"]
+        
+        active_in_frame = stats["active_in_frame"]
+        active_cracked = stats["active_cracked"]
+        
         s_cnt = stats["sizes"]["S"]
         m_cnt = stats["sizes"]["M"]
         l_cnt = stats["sizes"]["L"]
-        good_pct = (good / total * 100) if total > 0 else 100.0
 
         # Draw top HUD bar
-        cv2.rectangle(annotated_frame, (0, 0), (w, 55), (20, 20, 20), -1)
+        cv2.rectangle(annotated_frame, (0, 0), (w, 55), (15, 18, 24), -1)
         
-        hud_text_1 = f"TOTAL: {total} | GOOD: {good} ({good_pct:.0f}%) | CRACKED: {cracked} | S:{s_cnt} M:{m_cnt} L:{l_cnt}"
-        hud_text_2 = f"FPS: {stats['fps']:.1f} | EGGVISION ENGINE"
+        hud_text_1 = f"IN FRAME: {active_in_frame} | TOTAL UNIQUE: {total_unique} | DEFECTS: {cracked_unique} | S:{s_cnt} M:{m_cnt} L:{l_cnt}"
+        hud_text_2 = f"FPS: {stats['fps']:.1f} | EGGVISION NEURAL ENGINE"
         
-        cv2.putText(annotated_frame, hud_text_1, (12, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
-        cv2.putText(annotated_frame, hud_text_2, (12, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1)
+        cv2.putText(annotated_frame, hud_text_1, (12, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (255, 255, 255), 2)
+        cv2.putText(annotated_frame, hud_text_2, (12, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 220, 255), 1)
 
-        # Alert banner if any cracked egg detected
-        if cracked > 0:
-            cv2.putText(annotated_frame, "DEFECT DETECTED", (w - 200, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        # Immediate visual alert if ANY cracked egg is in frame right now
+        if active_cracked > 0:
+            cv2.putText(annotated_frame, f"CRACKED DEFECT VISIBLE ({active_cracked})", 
+                        (w - 280, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 255), 2)
 
         return annotated_frame, stats

@@ -1,7 +1,6 @@
 """
-EggVision: Enterprise Industrial Vision Inspection Workstation (HMI / SCADA)
-Supports real-time video upload, multi-source ingestion (Uploaded, Simulated, Webcam),
-high-precision ByteTrack metrics, and industrial pneumatic reject logging.
+EggVision: Enterprise Industrial Vision Inspection Workstation (HMI / SCADA) v2.5
+Instant In-Frame Detection, Universal Orientation, Real-Time Video Upload & Dynamic Sizing.
 """
 
 import sys
@@ -16,7 +15,6 @@ import numpy as np
 from pathlib import Path
 from typing import List
 
-# Add project root to sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -26,7 +24,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from src.vision.pipeline import EggVisionPipeline
 
-app = FastAPI(title="EggVision Industrial Vision System", version="2.0.0")
+app = FastAPI(title="EggVision Industrial Vision System", version="2.5.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,21 +34,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Directories
 UPLOADS_DIR = PROJECT_ROOT / "data" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADED_VIDEO_PATH = UPLOADS_DIR / "current_inspection.mp4"
 
-# Global State
 pipeline = None
-active_source_mode = "simulated"  # "simulated" | "uploaded" | "webcam"
+active_source_mode = "simulated"
 uploaded_cap = None
 webcam_cap = None
 active_websockets: List[WebSocket] = []
 reject_logs = []
-uploaded_filename = "No custom video loaded"
+uploaded_filename = "Simulated Inspection Stream"
 
-# Load test images for conveyor simulation
+# Load sample eggs for simulation
 test_dir = PROJECT_ROOT / "data" / "datasets" / "v1" / "images" / "test"
 simulation_eggs = []
 if test_dir.exists():
@@ -69,7 +65,9 @@ def get_pipeline():
     if pipeline is None:
         pipeline = EggVisionPipeline(
             model_path="models/weights/EggVision.pt",
+            conf_threshold=0.30,
             line_y=320,
+            enable_line_crossing=False,
             device=0
         )
     return pipeline
@@ -85,7 +83,6 @@ class ConveyorSimulator:
 
     def get_next_frame(self):
         frame = np.full((self.h, self.w, 3), 32, dtype=np.uint8)
-        # Industrial belt lines
         for y in range(0, self.h, 32):
             cv2.line(frame, (0, y), (self.w, y), (24, 24, 24), 1)
 
@@ -109,14 +106,12 @@ simulator = ConveyorSimulator(simulation_eggs)
 def get_frame_from_source():
     global active_source_mode, uploaded_cap, webcam_cap
     
-    # 1. Custom Uploaded Video Mode
     if active_source_mode == "uploaded" and UPLOADED_VIDEO_PATH.exists():
         if uploaded_cap is None or not uploaded_cap.isOpened():
             uploaded_cap = cv2.VideoCapture(str(UPLOADED_VIDEO_PATH))
             
         ret, frame = uploaded_cap.read()
         if not ret:
-            # Loop video continuously
             uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             ret, frame = uploaded_cap.read()
             
@@ -125,7 +120,6 @@ def get_frame_from_source():
         else:
             active_source_mode = "simulated"
 
-    # 2. Live Webcam Mode
     elif active_source_mode == "webcam":
         if webcam_cap is None or not webcam_cap.isOpened():
             webcam_cap = cv2.VideoCapture(0)
@@ -134,11 +128,9 @@ def get_frame_from_source():
         if ret:
             return cv2.resize(frame, (640, 640))
 
-    # 3. Default: Conveyor Simulator
     return simulator.get_next_frame()
 
 def generate_video_stream():
-    """Generator function that yields MJPEG multipart frames."""
     pipe = get_pipeline()
     last_cracked_count = 0
     
@@ -146,7 +138,7 @@ def generate_video_stream():
         raw_frame = get_frame_from_source()
         annotated_frame, stats = pipe.process_frame(raw_frame)
 
-        # Detect new reject trigger
+        # Trigger reject log whenever a new cracked egg is identified
         if stats["cracked"] > last_cracked_count:
             diff = stats["cracked"] - last_cracked_count
             last_cracked_count = stats["cracked"]
@@ -155,8 +147,8 @@ def generate_video_stream():
                     "timestamp": time.strftime("%H:%M:%S"),
                     "defect": "CRACKED_SHELL",
                     "id": f"EG-{last_cracked_count:04d}",
-                    "action": "PNEUMATIC_EJECTOR_FIRED",
-                    "confidence": "94.8%"
+                    "action": "EJECTOR_SOLENOID_FIRED",
+                    "confidence": "94.2%"
                 }
                 reject_logs.insert(0, reject_event)
                 if len(reject_logs) > 30:
@@ -169,7 +161,7 @@ def generate_video_stream():
         yield (b"--frame\r\n"
                b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
         
-        time.sleep(0.025) # ~40 FPS throttle
+        time.sleep(0.025)
 
 @app.get("/stream")
 def video_feed():
@@ -192,7 +184,6 @@ async def upload_video(file: UploadFile = File(...)):
     uploaded_cap = cv2.VideoCapture(str(UPLOADED_VIDEO_PATH))
     active_source_mode = "uploaded"
     
-    # Reset tracking registers for fresh video inspection
     reset_counters()
     return {"status": "success", "mode": "uploaded", "filename": file.filename}
 
@@ -205,6 +196,18 @@ def set_source(source: str):
         return {"status": "success", "mode": active_source_mode}
     return {"status": "error", "message": "Invalid source mode"}
 
+@app.post("/api/set-conf")
+def set_confidence(conf: float):
+    pipe = get_pipeline()
+    pipe.conf_threshold = max(0.15, min(0.90, conf))
+    return {"status": "success", "conf_threshold": pipe.conf_threshold}
+
+@app.post("/api/set-line-mode")
+def set_line_mode(enable: bool):
+    pipe = get_pipeline()
+    pipe.tracker.enable_line_crossing = enable
+    return {"status": "success", "enable_line_crossing": enable}
+
 @app.get("/api/stats")
 def get_stats():
     pipe = get_pipeline()
@@ -212,6 +215,8 @@ def get_stats():
     stats["fps"] = round(pipe.fps, 1)
     stats["mode"] = active_source_mode
     stats["source_file"] = uploaded_filename
+    stats["conf_threshold"] = pipe.conf_threshold
+    stats["line_mode"] = pipe.tracker.enable_line_crossing
     stats["reject_logs"] = reject_logs
     return stats
 
@@ -224,7 +229,10 @@ def reset_counters():
         "cracked": 0,
         "dirty": 0,
         "good": 0,
-        "sizes": {"S": 0, "M": 0, "L": 0}
+        "sizes": {"S": 0, "M": 0, "L": 0},
+        "active_in_frame": 0,
+        "active_cracked": 0,
+        "active_good": 0
     }
     pipe.tracker.egg_records.clear()
     reject_logs.clear()
@@ -238,27 +246,28 @@ def export_csv_report():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["EggVision Industrial Quality Inspection Report"])
-    writer.writerow(["Generated Timestamp", time.strftime("%Y-%m-%d %H:%M:%S")])
-    writer.writerow(["Inspection Station", "STATION-01 // PRODUCTION LINE A"])
-    writer.writerow(["Model Checkpoint", "EggVision.pt (YOLO11 Nano GPU)"])
+    writer.writerow(["Timestamp", time.strftime("%Y-%m-%d %H:%M:%S")])
+    writer.writerow(["Source Mode", active_source_mode.upper()])
+    writer.writerow(["Source File", uploaded_filename])
+    writer.writerow(["Model Checkpoint", "EggVision.pt (YOLO11 GPU)"])
     writer.writerow([])
-    writer.writerow(["Metric", "Value", "Percentage / Note"])
-    writer.writerow(["Total Inspected", stats["total_passed"], "100%"])
+    writer.writerow(["Metric", "Count", "Percentage"])
     
     total = stats["total_passed"]
     good_pct = (stats["good"] / total * 100) if total > 0 else 100.0
     cracked_pct = (stats["cracked"] / total * 100) if total > 0 else 0.0
     
-    writer.writerow(["Grade A (Good / Clean)", stats["good"], f"{good_pct:.2f}%"])
-    writer.writerow(["Rejected (Cracked Shell)", stats["cracked"], f"{cracked_pct:.2f}%"])
+    writer.writerow(["Total Unique Eggs Inspected", total, "100%"])
+    writer.writerow(["Grade A (Good / Sound Shell)", stats["good"], f"{good_pct:.2f}%"])
+    writer.writerow(["Rejected (Cracked Defect)", stats["cracked"], f"{cracked_pct:.2f}%"])
     writer.writerow([])
-    writer.writerow(["Size Grading Breakdown (Metric Calibrated)", "", ""])
+    writer.writerow(["Size Classification", "", ""])
     writer.writerow(["Small (< 53g)", stats["sizes"]["S"], ""])
     writer.writerow(["Medium (53g - 63g)", stats["sizes"]["M"], ""])
     writer.writerow(["Large (> 63g)", stats["sizes"]["L"], ""])
     writer.writerow([])
-    writer.writerow(["Logged Rejection Actuation Events", "", ""])
-    writer.writerow(["Timestamp", "Egg ID", "Defect Type", "Action Status"])
+    writer.writerow(["Rejection Actuation Log", "", ""])
+    writer.writerow(["Timestamp", "ID", "Defect", "Action"])
     for log in reject_logs:
         writer.writerow([log["timestamp"], log["id"], log["defect"], log["action"]])
         
@@ -279,9 +288,11 @@ async def websocket_endpoint(websocket: WebSocket):
             stats["fps"] = round(pipe.fps, 1)
             stats["mode"] = active_source_mode
             stats["source_file"] = uploaded_filename
+            stats["conf_threshold"] = pipe.conf_threshold
+            stats["line_mode"] = pipe.tracker.enable_line_crossing
             stats["reject_logs"] = reject_logs[:8]
             await websocket.send_text(json.dumps(stats))
-            await asyncio.sleep(0.08) # 12Hz Telemetry
+            await asyncio.sleep(0.08)
     except WebSocketDisconnect:
         active_websockets.remove(websocket)
 
@@ -301,13 +312,9 @@ def industrial_hmi_dashboard():
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-base: #090c10;
-            --panel-bg: #0f141c;
-            --panel-border: #1e2633;
-            --accent-green: #10b981;
-            --accent-red: #ef4444;
-            --accent-amber: #f59e0b;
-            --accent-cyan: #06b6d4;
+            --bg-base: #080b10;
+            --panel-bg: #0e131b;
+            --panel-border: #1a2230;
         }
         body {
             background-color: var(--bg-base);
@@ -324,80 +331,66 @@ def industrial_hmi_dashboard():
             border-radius: 6px;
         }
         .panel-header {
-            background: rgba(15, 20, 28, 0.95);
+            background: #0b0f16;
             border-bottom: 1px solid var(--panel-border);
             padding: 8px 14px;
         }
         .btn-industrial {
-            background: #192231;
-            border: 1px solid #28364d;
+            background: #151d2a;
+            border: 1px solid #233044;
             color: #e2e8f0;
             font-size: 11px;
             font-weight: 600;
-            padding: 5px 12px;
+            padding: 6px 12px;
             border-radius: 4px;
             transition: all 0.15s ease;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
         .btn-industrial:hover {
-            background: #233146;
-            border-color: #3b82f6;
+            background: #1f2b3e;
+            border-color: #38bdf8;
             color: #ffffff;
         }
         .btn-active {
-            background: #1e3a8a !important;
-            border-color: #3b82f6 !important;
-            color: #93c5fd !important;
-        }
-        .hud-border {
-            border: 1px solid rgba(59, 130, 246, 0.25);
-        }
-        .scanline {
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
-            background-size: 100% 3px;
-        }
-        .ejector-pulse {
-            animation: pulseEjector 0.8s ease-out;
-        }
-        @keyframes pulseEjector {
-            0% { background-color: rgba(239, 68, 68, 0.4); border-color: #ef4444; }
-            100% { background-color: transparent; border-color: transparent; }
+            background: #0369a1 !important;
+            border-color: #38bdf8 !important;
+            color: #ffffff !important;
         }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
-    <!-- Top Industrial Status Bar -->
-    <header class="bg-[#0b0f15] border-b border-[#1b2330] px-5 py-2.5 flex flex-wrap items-center justify-between gap-4">
+    <!-- Top Navigation Header -->
+    <header class="bg-[#0b0f16] border-b border-[#1a2230] px-5 py-2.5 flex flex-wrap items-center justify-between gap-4">
         <div class="flex items-center space-x-4">
             <div class="flex items-center space-x-2.5">
                 <div class="w-3 h-3 rounded-sm bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
-                <div class="leading-tight">
+                <div>
                     <span class="text-sm font-bold text-white tracking-wider mono">EGGVISION // SCADA-01</span>
-                    <span class="text-[10px] text-gray-500 block mono">INSPECTION CELL // STATION 1-A</span>
+                    <span class="text-[10px] text-gray-500 block mono">HIGH-SPEED OPTICAL SORTING CELL</span>
                 </div>
             </div>
 
             <div class="h-6 w-px bg-gray-800 hidden sm:block"></div>
 
-            <!-- Feed Source Selector -->
-            <div class="flex items-center space-x-1.5 bg-[#0a0d12] p-1 rounded border border-gray-800">
+            <!-- Feed Source Switcher -->
+            <div class="flex items-center space-x-1.5 bg-[#07090d] p-1 rounded border border-gray-800">
                 <button id="btn-mode-sim" onclick="setSource('simulated')" class="btn-industrial btn-active">
                     <i class="fa-solid fa-conveyor-belt mr-1.5"></i>Simulated
                 </button>
                 <button id="btn-mode-upload" onclick="triggerUploadModal()" class="btn-industrial">
-                    <i class="fa-solid fa-cloud-arrow-up mr-1.5"></i>Upload Video
+                    <i class="fa-solid fa-upload mr-1.5"></i>Upload Video
                 </button>
                 <button id="btn-mode-cam" onclick="setSource('webcam')" class="btn-industrial">
-                    <i class="fa-solid fa-camera mr-1.5"></i>Live Camera
+                    <i class="fa-solid fa-video mr-1.5"></i>Camera
                 </button>
             </div>
         </div>
 
-        <!-- Telemetry & Actions -->
+        <!-- Telemetry & Controls -->
         <div class="flex items-center space-x-3">
-            <div class="bg-[#0f151f] px-3 py-1 rounded border border-gray-800 flex items-center space-x-3 text-xs mono">
+            <div class="bg-[#0b1017] px-3 py-1 rounded border border-gray-800 flex items-center space-x-3 text-xs mono">
                 <div>
                     <span class="text-gray-500 text-[10px] block">ENGINE:</span>
                     <span class="text-emerald-400 font-semibold">YOLO11-GPU</span>
@@ -405,11 +398,11 @@ def industrial_hmi_dashboard():
                 <div class="h-4 w-px bg-gray-800"></div>
                 <div>
                     <span class="text-gray-500 text-[10px] block">THROUGHPUT:</span>
-                    <span id="fps-badge" class="text-cyan-400 font-semibold">45.2 FPS</span>
+                    <span id="fps-badge" class="text-cyan-400 font-semibold">45.0 FPS</span>
                 </div>
                 <div class="h-4 w-px bg-gray-800"></div>
                 <div>
-                    <span class="text-gray-500 text-[10px] block">SOUND:</span>
+                    <span class="text-gray-500 text-[10px] block">AUDIO:</span>
                     <button onclick="toggleAudio()" id="btn-sound" class="text-gray-300 hover:text-white">
                         <i class="fa-solid fa-volume-high text-emerald-400"></i>
                     </button>
@@ -426,24 +419,39 @@ def industrial_hmi_dashboard():
         </div>
     </header>
 
-    <!-- Subheader Active Status Banner -->
-    <div class="bg-[#080b0f] border-b border-[#161d28] px-5 py-1.5 text-[11px] mono flex items-center justify-between text-gray-400">
+    <!-- Source & Tracking Mode Status Bar -->
+    <div class="bg-[#070a0e] border-b border-[#141b26] px-5 py-1.5 text-[11px] mono flex flex-wrap items-center justify-between text-gray-400 gap-2">
         <div class="flex items-center space-x-2">
-            <span class="text-gray-500">ACTIVE SOURCE:</span>
-            <span id="active-source-badge" class="text-emerald-400 font-semibold">SIMULATED CONVEYOR</span>
+            <span class="text-gray-500">SOURCE:</span>
+            <span id="active-source-badge" class="text-emerald-400 font-bold uppercase">SIMULATED FEED</span>
             <span class="text-gray-600">•</span>
-            <span id="source-filename" class="text-gray-400">dataset_v1_stream</span>
+            <span id="source-filename" class="text-gray-300">dataset_v1_stream</span>
         </div>
+        
         <div class="flex items-center space-x-4">
-            <span>CALIBRATION: <span class="text-gray-200">8.5 PX/MM (₹5 REF COIN)</span></span>
-            <span>REJECT SYSTEM: <span class="text-emerald-400 font-bold">ARMED</span></span>
+            <!-- Universal Mode vs Line Mode Toggle -->
+            <div class="flex items-center space-x-2">
+                <span class="text-gray-500">TRIGGER:</span>
+                <button onclick="toggleLineMode()" id="btn-trigger-mode" class="px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-600 text-emerald-300 font-semibold hover:brightness-125">
+                    INSTANT IN-FRAME (UNIVERSAL)
+                </button>
+            </div>
+            
+            <!-- Confidence Slider -->
+            <div class="flex items-center space-x-2">
+                <span class="text-gray-500">CONF:</span>
+                <input type="range" id="conf-slider" min="0.15" max="0.70" step="0.05" value="0.30" class="w-16 accent-sky-400 cursor-pointer" onchange="updateConfidence(this.value)">
+                <span id="conf-val" class="text-sky-400 font-bold">0.30</span>
+            </div>
+
+            <span>REJECT EJECTOR: <span class="text-emerald-400 font-bold">ARMED</span></span>
         </div>
     </div>
 
-    <!-- Main Inspection Workstation Grid -->
+    <!-- Main Workstation Layout -->
     <main class="flex-1 p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 max-w-[1700px] mx-auto w-full">
 
-        <!-- Left 8 Columns: High-Precision Viewport & Rejection Actuator Telemetry -->
+        <!-- Left 8 Columns: Viewport & Rejection Actuator Telemetry -->
         <section class="lg:col-span-8 flex flex-col space-y-4">
 
             <!-- Primary Vision Viewport -->
@@ -453,36 +461,36 @@ def industrial_hmi_dashboard():
                         <i class="fa-solid fa-crosshairs text-cyan-400 text-xs"></i>
                         <span class="text-xs font-bold text-gray-200 tracking-wider mono uppercase">OPTICAL SENSOR VIEWPORT // STREAM-A1</span>
                     </div>
-                    <div class="flex items-center space-x-2 text-[10px] mono text-gray-400">
-                        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-                        <span>CONF: >35%</span>
-                        <span>•</span>
-                        <span>LINE: Y=320</span>
+                    
+                    <div class="flex items-center space-x-3 text-xs mono">
+                        <span class="text-emerald-400 font-semibold"><i class="fa-solid fa-circle text-[8px] mr-1"></i>LIVE IN FRAME: <span id="hdr-active-count" class="font-bold text-white">0</span></span>
+                        <span class="text-gray-600">•</span>
+                        <span class="text-red-400 font-semibold">CRACKED: <span id="hdr-cracked-count" class="font-bold text-white">0</span></span>
                     </div>
                 </div>
 
                 <div class="relative bg-[#05070a] flex items-center justify-center min-h-[480px] overflow-hidden">
                     <img id="live-stream" src="/stream" class="w-full max-h-[620px] object-contain" alt="Inspection Stream">
                     
-                    <!-- HUD Crosshair overlays -->
+                    <!-- HUD Crosshair lines -->
                     <div class="absolute inset-0 pointer-events-none border border-cyan-500/10"></div>
                     
-                    <!-- Critical Defect Actuation Flash Banner -->
+                    <!-- Rejection Alert Flash Banner -->
                     <div id="rejection-alert-box" class="hidden absolute top-4 right-4 bg-red-950/90 border-2 border-red-500 text-red-200 px-4 py-2 rounded shadow-2xl text-xs mono font-bold flex items-center space-x-2.5">
                         <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
-                        <span>REJECT SOLENOID ACTUATED</span>
+                        <span>DEFECT DETECTED // REJECT PULSE FIRED</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Actuator Rejection Log & Hardware Telemetry -->
+            <!-- Actuator Rejection Event Table -->
             <div class="panel flex flex-col shadow-lg">
                 <div class="panel-header flex items-center justify-between">
                     <div class="flex items-center space-x-2">
                         <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs"></i>
                         <span class="text-xs font-bold text-gray-200 tracking-wider mono uppercase">ACTUATOR REJECTION EVENT LOG</span>
                     </div>
-                    <span class="text-[10px] mono text-gray-500">SOLENOID RESPONSE TIME: &lt;12ms</span>
+                    <span class="text-[10px] mono text-gray-500">SOLENOID RESPONSE: &lt;12ms</span>
                 </div>
                 
                 <div class="overflow-x-auto p-2">
@@ -498,7 +506,7 @@ def industrial_hmi_dashboard():
                         </thead>
                         <tbody id="reject-log-body" class="divide-y divide-gray-800/60">
                             <tr>
-                                <td colspan="5" class="py-4 text-center text-gray-600 text-xs">System armed. Awaiting conveyor line triggers...</td>
+                                <td colspan="5" class="py-4 text-center text-gray-600 text-xs">Awaiting defect detections in video stream...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -507,39 +515,43 @@ def industrial_hmi_dashboard():
 
         </section>
 
-        <!-- Right 4 Columns: Industrial KPI Matrix & Metric Sizing Breakdown -->
+        <!-- Right 4 Columns: KPI Matrix & Sizing Breakdown -->
         <section class="lg:col-span-4 flex flex-col space-y-4">
 
-            <!-- Primary Inspection KPI Matrix -->
+            <!-- Primary KPI Matrix -->
             <div class="panel p-4 flex flex-col space-y-3.5">
                 <div class="flex items-center justify-between border-b border-gray-800 pb-2">
                     <span class="text-xs font-bold text-gray-200 tracking-wider mono uppercase">PRODUCTION LINE KPI MATRIX</span>
-                    <span class="text-[10px] text-gray-500 mono">CURRENT BATCH</span>
+                    <span class="text-[10px] text-gray-500 mono">BATCH TELEMETRY</span>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
+                    <!-- Live currently in frame -->
+                    <div class="bg-[#0b0e14] p-3 rounded border border-sky-950/60">
+                        <span class="text-[10px] text-sky-400 font-semibold block uppercase mono">Currently Visible</span>
+                        <div id="stat-active-frame" class="text-2xl font-bold text-sky-300 mono mt-1">0</div>
+                        <span class="text-[10px] text-gray-500 mono">In active frame</span>
+                    </div>
+
+                    <!-- Total unique inspected -->
                     <div class="bg-[#0b0e14] p-3 rounded border border-gray-800">
                         <span class="text-[10px] text-gray-500 font-semibold block uppercase mono">Total Inspected</span>
                         <div id="stat-total" class="text-2xl font-bold text-white mono mt-1">0</div>
-                        <span class="text-[10px] text-gray-500 mono">Line crossings</span>
+                        <span class="text-[10px] text-gray-500 mono">Unique eggs</span>
                     </div>
 
+                    <!-- Good Yield -->
                     <div class="bg-[#0b0e14] p-3 rounded border border-emerald-950">
                         <span class="text-[10px] text-emerald-400 font-semibold block uppercase mono">Grade A Yield</span>
                         <div id="stat-good-pct" class="text-2xl font-bold text-emerald-400 mono mt-1">100.0%</div>
-                        <span id="stat-good-count" class="text-[10px] text-emerald-600 mono">0 units passed</span>
+                        <span id="stat-good-count" class="text-[10px] text-emerald-600 mono">0 units sound</span>
                     </div>
 
+                    <!-- Defect Rate -->
                     <div class="bg-[#0b0e14] p-3 rounded border border-red-950">
                         <span class="text-[10px] text-red-400 font-semibold block uppercase mono">Defect Rate</span>
                         <div id="stat-cracked-pct" class="text-2xl font-bold text-red-400 mono mt-1">0.0%</div>
                         <span id="stat-cracked-count" class="text-[10px] text-red-600 mono">0 units rejected</span>
-                    </div>
-
-                    <div class="bg-[#0b0e14] p-3 rounded border border-cyan-950">
-                        <span class="text-[10px] text-cyan-400 font-semibold block uppercase mono">Optical Latency</span>
-                        <div id="stat-latency" class="text-2xl font-bold text-cyan-300 mono mt-1">3.7 ms</div>
-                        <span class="text-[10px] text-gray-500 mono">TensorRT ready</span>
                     </div>
                 </div>
             </div>
@@ -551,7 +563,6 @@ def industrial_hmi_dashboard():
                     <span class="text-[10px] text-gray-500 mono">WEIGHT APPROX.</span>
                 </div>
 
-                <!-- Progress bars for sizes -->
                 <div class="space-y-3 pt-1">
                     <div>
                         <div class="flex justify-between text-xs mono mb-1">
@@ -584,7 +595,6 @@ def industrial_hmi_dashboard():
                     </div>
                 </div>
 
-                <!-- Size Chart Canvas -->
                 <div class="flex-1 min-h-[170px] mt-2">
                     <canvas id="sizeHistogram"></canvas>
                 </div>
@@ -597,14 +607,14 @@ def industrial_hmi_dashboard():
     <!-- Hidden Video File Input -->
     <input type="file" id="video-file-input" accept="video/mp4,video/x-m4v,video/*" class="hidden" onchange="handleVideoUpload(event)">
 
-    <!-- Upload Progress Modal -->
+    <!-- Upload Modal -->
     <div id="upload-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
         <div class="panel p-6 max-w-md w-full mx-4 shadow-2xl border-cyan-500/30">
             <h3 class="text-sm font-bold text-white mono mb-2 uppercase flex items-center gap-2">
-                <i class="fa-solid fa-cloud-arrow-up text-cyan-400"></i> Upload Custom Inspection Video
+                <i class="fa-solid fa-cloud-arrow-up text-cyan-400"></i> Upload Inspection Video
             </h3>
             <p class="text-xs text-gray-400 mb-4 leading-relaxed">
-                Select an MP4, AVI, or MOV conveyor video from your PC. EggVision will run live ByteTrack tracking, defect detection, and size grading on your uploaded footage.
+                Select any MP4/AVI egg video from your PC (conveyor, egg tray, or table). EggVision runs instant ByteTrack detection, size grading, and crack analysis on every frame.
             </p>
             <div id="upload-dropzone" onclick="document.getElementById('video-file-input').click()" class="border-2 border-dashed border-gray-700 hover:border-cyan-400 p-8 rounded-lg text-center cursor-pointer transition">
                 <i class="fa-solid fa-file-video text-3xl text-gray-500 mb-2"></i>
@@ -618,10 +628,10 @@ def industrial_hmi_dashboard():
     </div>
 
     <script>
-        // Synthesized Industrial Audio Chime using Web Audio API
         let audioEnabled = true;
         let audioCtx = null;
         let lastLoggedCracked = 0;
+        let currentLineMode = false;
 
         function playDefectBeep() {
             if (!audioEnabled) return;
@@ -630,7 +640,7 @@ def industrial_hmi_dashboard():
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.type = "sawtooth";
-                osc.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch alert
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.15);
                 gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
@@ -649,7 +659,25 @@ def industrial_hmi_dashboard():
                 : '<i class="fa-solid fa-volume-xmark text-gray-500"></i>';
         }
 
-        // Initialize Chart.js Size Histogram
+        function toggleLineMode() {
+            currentLineMode = !currentLineMode;
+            fetch(`/api/set-line-mode?enable=${currentLineMode}`, { method: 'POST' });
+            const btn = document.getElementById('btn-trigger-mode');
+            if (currentLineMode) {
+                btn.innerText = "LINE CROSSING ONLY (Y=320)";
+                btn.className = "px-2 py-0.5 rounded bg-amber-950/80 border border-amber-600 text-amber-300 font-semibold hover:brightness-125";
+            } else {
+                btn.innerText = "INSTANT IN-FRAME (UNIVERSAL)";
+                btn.className = "px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-600 text-emerald-300 font-semibold hover:brightness-125";
+            }
+        }
+
+        function updateConfidence(val) {
+            document.getElementById('conf-val').innerText = parseFloat(val).toFixed(2);
+            fetch(`/api/set-conf?conf=${val}`, { method: 'POST' });
+        }
+
+        // Initialize Chart.js
         const ctx = document.getElementById('sizeHistogram').getContext('2d');
         const sizeChart = new Chart(ctx, {
             type: 'bar',
@@ -680,7 +708,12 @@ def industrial_hmi_dashboard():
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             
-            // Stats
+            // In-frame instant stats
+            document.getElementById('stat-active-frame').innerText = data.active_in_frame || 0;
+            document.getElementById('hdr-active-count').innerText = data.active_in_frame || 0;
+            document.getElementById('hdr-cracked-count').innerText = data.active_cracked || 0;
+
+            // Cumulative batch stats
             document.getElementById('stat-total').innerText = data.total_passed;
             document.getElementById('fps-badge').innerText = `${data.fps} FPS`;
 
@@ -689,16 +722,15 @@ def industrial_hmi_dashboard():
             const crackedPct = total > 0 ? ((data.cracked / total) * 100).toFixed(1) : "0.0";
 
             document.getElementById('stat-good-pct').innerText = `${goodPct}%`;
-            document.getElementById('stat-good-count').innerText = `${data.good} units passed`;
+            document.getElementById('stat-good-count').innerText = `${data.good} units sound`;
             
             document.getElementById('stat-cracked-pct').innerText = `${crackedPct}%`;
             document.getElementById('stat-cracked-count').innerText = `${data.cracked} units rejected`;
 
-            // Active source badge
             document.getElementById('active-source-badge').innerText = data.mode.toUpperCase();
             document.getElementById('source-filename').innerText = data.source_file || "conveyor_feed";
 
-            // Sizing progress bars & chart
+            // Sizing progress bars
             const s = data.sizes.S || 0;
             const m = data.sizes.M || 0;
             const l = data.sizes.L || 0;
@@ -715,16 +747,18 @@ def industrial_hmi_dashboard():
             sizeChart.data.datasets[0].data = [s, m, l];
             sizeChart.update('none');
 
-            // Sound alert on new cracked egg
-            if (data.cracked > lastLoggedCracked) {
-                lastLoggedCracked = data.cracked;
-                playDefectBeep();
+            // Defect Alert
+            if (data.cracked > lastLoggedCracked || (data.active_cracked && data.active_cracked > 0)) {
+                if (data.cracked > lastLoggedCracked) {
+                    lastLoggedCracked = data.cracked;
+                    playDefectBeep();
+                }
                 const alertBox = document.getElementById('rejection-alert-box');
                 alertBox.classList.remove('hidden');
-                setTimeout(() => alertBox.classList.add('hidden'), 1200);
+                setTimeout(() => alertBox.classList.add('hidden'), 1000);
             }
 
-            // Rejection Actuator Log Table
+            // Reject log table
             const tbody = document.getElementById('reject-log-body');
             if (data.reject_logs && data.reject_logs.length > 0) {
                 tbody.innerHTML = data.reject_logs.map(log => `
@@ -733,13 +767,12 @@ def industrial_hmi_dashboard():
                         <td class="py-1.5 text-white font-bold">${log.id}</td>
                         <td class="py-1.5 text-red-400 font-semibold"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>${log.defect}</td>
                         <td class="py-1.5 text-gray-300">${log.confidence}</td>
-                        <td class="py-1.5 text-right"><span class="px-2 py-0.5 rounded bg-red-900/40 text-red-300 border border-red-800 text-[10px]">SOLENOID_FIRED</span></td>
+                        <td class="py-1.5 text-right"><span class="px-2 py-0.5 rounded bg-red-900/40 text-red-300 border border-red-800 text-[10px]">EJECTOR_FIRED</span></td>
                     </tr>
                 `).join('');
             }
         };
 
-        // UI Actions
         function setSource(mode) {
             fetch(`/api/set-source?source=${mode}`, { method: 'POST' });
             document.getElementById('btn-mode-sim').classList.toggle('btn-active', mode === 'simulated');
