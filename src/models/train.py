@@ -79,7 +79,7 @@ def train_baseline(
         target_weights_dir = base_dir / "models" / "weights"
         target_weights_dir.mkdir(parents=True, exist_ok=True)
         
-        best_pt_dest = target_weights_dir / "baseline_best.pt"
+        best_pt_dest = target_weights_dir / "EggVision.pt"
         if best_pt_src.exists():
             shutil.copy(best_pt_src, best_pt_dest)
             print(f"\n💾 Saved best weights to: {best_pt_dest}")
