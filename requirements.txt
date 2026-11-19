@@ -1,0 +1,29 @@
+# ==============================================================================
+# EggVision: Python Core Dependencies
+# ==============================================================================
+
+# Core Computer Vision & Image Processing
+opencv-python>=4.10.0
+numpy>=1.26.0
+pillow>=10.0.0
+
+# Deep Learning, Segmentation & Tracking
+# Note: torch & torchvision will be installed with CUDA support via --index-url
+ultralytics>=8.3.0
+supervision>=0.24.0
+
+# Configuration, Utilities & CLI
+pyyaml>=6.0
+pydantic>=2.7.0
+tqdm>=4.66.0
+
+# Backend & Real-time Video Streaming
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+websockets>=13.0
+python-multipart>=0.0.12
+
+# MLOps, Tracking & Data Versioning
+mlflow>=3.18.0
+dvc>=3.67.0
+
