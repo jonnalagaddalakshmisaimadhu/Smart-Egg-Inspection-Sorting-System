@@ -29,6 +29,9 @@ models/weights/*.pt
 models/weights/*.onnx
 models/weights/*.engine
 *.weights
+*.pt
+*.onnx
+
 
 # MLOps & Tracking
 mlruns/

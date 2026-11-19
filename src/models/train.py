@@ -2,6 +2,7 @@
 EggVision: Baseline Model Training Script (Phase 6)
 Trains YOLO11 nano on RTX 3050 GPU with native metrics tracking & optional MLflow.
 Saves the best model checkpoint as models/weights/EggVision.pt.
+Supports automatic resume if training was interrupted.
 """
 
 import os
@@ -34,56 +35,35 @@ def train_baseline(
     if not data_path.exists():
         raise FileNotFoundError(f"data.yaml not found at {data_path}. Please run prepare_dataset.py first.")
 
-    # Optional MLflow integration (graceful fallback if blocked by Windows Application Control)
-    mlflow_active = False
-    try:
-        import mlflow
-        mlflow.set_experiment("EggVision-Baseline")
-        mlflow.start_run(run_name="yolo11n-baseline")
-        mlflow.log_params({
-            "model": model_name,
-            "epochs": epochs,
-            "batch_size": batch_size,
-            "imgsz": imgsz,
-            "device": str(device)
-        })
-        mlflow_active = True
-        print("📊 MLflow tracking: ACTIVE")
-    except Exception as e:
-        print(f"ℹ️  MLflow bypassed ({type(e).__name__}). Using Ultralytics native metrics logger.")
+    last_pt = base_dir / project_dir / experiment_name / "weights" / "last.pt"
 
-    # Load YOLO model
-    model = YOLO(model_name)
-
-    # Train model on GPU
-    results = model.train(
-        data=str(data_path),
-        epochs=epochs,
-        batch=batch_size,
-        imgsz=imgsz,
-        device=device,
-        project=str(base_dir / project_dir),
-        name=experiment_name,
-        workers=2,
-        exist_ok=True,
-        verbose=True,
-        plots=True
-    )
+    # Check if a previous run was interrupted and can be resumed
+    if last_pt.exists():
+        print(f"🔄 Found checkpoint from previous run! Resuming from: {last_pt}")
+        model = YOLO(str(last_pt))
+        results = model.train(resume=True)
+    else:
+        model = YOLO(model_name)
+        results = model.train(
+            data=str(data_path),
+            epochs=epochs,
+            batch=batch_size,
+            imgsz=imgsz,
+            device=device,
+            project=str(base_dir / project_dir),
+            name=experiment_name,
+            workers=2,
+            exist_ok=True,
+            verbose=True,
+            plots=True
+        )
 
     # Evaluate validation metrics
-    print("\n🔍 Running Validation on Val Split...")
+    print("\n🔍 Running Final Validation on Val Split...")
     val_metrics = model.val()
     
     map50 = val_metrics.box.map50
     map50_95 = val_metrics.box.map
-    
-    if mlflow_active:
-        try:
-            import mlflow
-            mlflow.log_metric("val_mAP50", float(map50))
-            mlflow.log_metric("val_mAP50_95", float(map50_95))
-        except Exception:
-            pass
 
     # Copy best weights to models/weights/EggVision.pt
     best_pt_src = base_dir / project_dir / experiment_name / "weights" / "best.pt"
@@ -94,13 +74,6 @@ def train_baseline(
     if best_pt_src.exists():
         shutil.copy(best_pt_src, best_pt_dest)
         print(f"\n💾 Successfully saved best model to: {best_pt_dest}")
-        if mlflow_active:
-            try:
-                import mlflow
-                mlflow.log_artifact(str(best_pt_dest))
-                mlflow.end_run()
-            except Exception:
-                pass
 
     print("\n" + "=" * 65)
     print("🎯 Phase 6 Baseline Evaluation Results:")
