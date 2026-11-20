@@ -669,7 +669,7 @@ def industrial_hmi_dashboard():
         <section class="lg:col-span-7 flex flex-col">
 
             <!-- Primary Vision Station Container -->
-            <div id="viewport-container" class="industrial-card overflow-hidden flex flex-col shadow-2xl">
+            <div id="viewport-container" class="industrial-card overflow-hidden flex flex-col shadow-2xl h-full justify-between">
                 
                 <!-- Attached Source Selection Header Directly on Upper of Video Screen -->
                 <div class="bg-[#141924] border-b border-[#232a3b] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
@@ -697,7 +697,7 @@ def industrial_hmi_dashboard():
                 </div>
 
                 <!-- Video Viewport -->
-                <div class="relative bg-[#07090f] flex items-center justify-center min-h-[460px] max-h-[640px] overflow-hidden">
+                <div class="relative bg-[#07090f] flex-1 flex items-center justify-center min-h-[460px] max-h-[640px] overflow-hidden">
                     <img id="live-stream" src="/stream" class="w-full max-h-[620px] object-contain" alt="Inspection Stream">
                     
                     <!-- Defect Alert Banner -->
@@ -747,166 +747,187 @@ def industrial_hmi_dashboard():
 
         </section>
 
-        <!-- Right 5 Columns: All Properties, Metrics, Sizing, Rejection Log & Controls in Structured Modules -->
-        <section class="lg:col-span-5 flex flex-col space-y-4">
+        <!-- Right 5 Columns: Unified Precision Control & Telemetry Station -->
+        <section class="lg:col-span-5 flex flex-col">
 
-            <!-- Module 1: Batch Actions Header Bar -->
-            <div class="industrial-card p-3 flex items-center justify-between gap-2">
-                <div class="flex items-center space-x-2">
-                    <button onclick="openReportModal()" class="btn-industrial text-slate-200 hover:text-white bg-[#1e2535]">
-                        <i class="fa-solid fa-file-invoice mr-1 text-slate-400"></i>Audit Report
+            <!-- Primary Right Console Enclosure (Matches Left Video Station Height & Style) -->
+            <div class="industrial-card overflow-hidden flex flex-col h-full shadow-2xl justify-between">
+
+                <!-- 1. Console Header -->
+                <div class="bg-[#141924] border-b border-[#232a3b] px-4 py-2.5 flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-microchip text-slate-400 text-xs"></i>
+                        <span class="text-xs font-bold text-white mono tracking-wider uppercase">Inspection Telemetry Station</span>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span class="text-[10px] text-emerald-400 mono font-bold">ACTIVE RUN</span>
+                    </div>
+                </div>
+
+                <!-- 2. The 2x2 Metric Matrix (Drawn as top 4-cell window in sketch) -->
+                <div class="p-3.5 border-b border-[#232a3b] bg-[#0d1017]">
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <!-- Top-Left: Total Inspected -->
+                        <div class="bg-[#131722] p-3 rounded-md border border-[#232a3b] flex flex-col justify-between">
+                            <span class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mono">Total Inspected</span>
+                            <div class="flex items-baseline space-x-1.5 mt-1">
+                                <span id="stat-total" class="text-2xl lg:text-3xl font-extrabold text-white mono">0</span>
+                                <span class="text-xs text-slate-500 font-mono">units</span>
+                            </div>
+                        </div>
+
+                        <!-- Top-Right: Grade A Sound Shells -->
+                        <div class="bg-[#0f1d19] p-3 rounded-md border border-[#17523f] flex flex-col justify-between">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] uppercase tracking-wider text-emerald-400 font-semibold mono">Grade A Sound</span>
+                                <i class="fa-solid fa-circle-check text-emerald-500 text-xs"></i>
+                            </div>
+                            <div class="flex items-baseline space-x-1.5 mt-1">
+                                <span id="stat-good-pct" class="text-2xl lg:text-3xl font-extrabold text-emerald-400 mono">100%</span>
+                                <span id="stat-good-count" class="text-xs text-emerald-600/90 mono font-semibold">0 sound</span>
+                            </div>
+                        </div>
+
+                        <!-- Bottom-Left: Cracked Shell Defects -->
+                        <div class="bg-[#1f1013] p-3 rounded-md border border-[#6b1e27] flex flex-col justify-between">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] uppercase tracking-wider text-red-400 font-semibold mono">Cracked Shells</span>
+                                <i class="fa-solid fa-bolt text-red-500 text-xs"></i>
+                            </div>
+                            <div class="flex items-baseline space-x-1.5 mt-1">
+                                <span id="stat-cracked-count" class="text-2xl lg:text-3xl font-extrabold text-red-400 mono">0</span>
+                                <span id="stat-cracked-pct" class="text-xs text-red-500/90 mono font-semibold">0.0%</span>
+                            </div>
+                        </div>
+
+                        <!-- Bottom-Right: Dirty Shell Defects -->
+                        <div class="bg-[#211709] p-3 rounded-md border border-[#6e4912] flex flex-col justify-between">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] uppercase tracking-wider text-amber-400 font-semibold mono">Dirty Shells</span>
+                                <i class="fa-solid fa-droplet text-amber-500 text-xs"></i>
+                            </div>
+                            <div class="flex items-baseline space-x-1.5 mt-1">
+                                <span id="stat-dirty-count" class="text-2xl lg:text-3xl font-extrabold text-amber-400 mono">0</span>
+                                <span id="stat-dirty-pct" class="text-xs text-amber-500/90 mono font-semibold">0.0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hidden helper fields for WS listener -->
+                    <span id="stat-active-frame" class="hidden">0</span>
+                    <span id="stat-defect-rate" class="hidden">0.0%</span>
+                    <span id="stat-defect-count" class="hidden">0</span>
+                    <span id="source-filename" class="hidden"></span>
+                    <span id="active-source-badge" class="hidden">SIMULATED</span>
+                </div>
+
+                <!-- 3. USDA Metric Size Grading (Drawn as 3 horizontal lines in sketch) -->
+                <div class="p-3.5 border-b border-[#232a3b] bg-[#10141e]">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[11px] font-bold text-slate-200 tracking-wider mono uppercase">USDA Size Grading</span>
+                        <span class="text-[10px] text-slate-500 mono">CALIBRATED BATCH WEIGHT</span>
+                    </div>
+
+                    <div class="space-y-2">
+                        <!-- Small -->
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300 font-medium text-[11px]">Small (&lt; 53g)</span>
+                                <span id="size-cnt-s" class="mono font-semibold text-slate-300 text-[11px]">0 units (0%)</span>
+                            </div>
+                            <div class="w-full bg-[#0b0e14] h-2 rounded overflow-hidden border border-[#232a3b]">
+                                <div id="size-bar-s" class="bg-slate-400 h-full w-0 transition-all duration-300"></div>
+                            </div>
+                        </div>
+
+                        <!-- Medium -->
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-emerald-400 font-medium text-[11px]">Medium (53g - 63g)</span>
+                                <span id="size-cnt-m" class="mono font-semibold text-emerald-300 text-[11px]">0 units (0%)</span>
+                            </div>
+                            <div class="w-full bg-[#0b0e14] h-2 rounded overflow-hidden border border-[#232a3b]">
+                                <div id="size-bar-m" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
+                            </div>
+                        </div>
+
+                        <!-- Large -->
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-amber-400 font-medium text-[11px]">Large (&gt; 63g)</span>
+                                <span id="size-cnt-l" class="mono font-semibold text-amber-300 text-[11px]">0 units (0%)</span>
+                            </div>
+                            <div class="w-full bg-[#0b0e14] h-2 rounded overflow-hidden border border-[#232a3b]">
+                                <div id="size-bar-l" class="bg-amber-500 h-full w-0 transition-all duration-300"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <canvas id="sizeHistogram" class="hidden"></canvas>
+                </div>
+
+                <!-- 4. Rejection Actuator Log & Sensitivity Controls -->
+                <div class="p-3.5 flex-1 flex flex-col min-h-0 bg-[#0d1017]">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-[11px] font-bold text-slate-200 tracking-wider mono uppercase">Rejection Actuator Log</span>
+                        <span class="text-[10px] text-slate-500 mono">&lt;12ms PNEUMATIC</span>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto max-h-[135px] pr-1">
+                        <table class="w-full text-left text-xs mono">
+                            <thead>
+                                <tr class="text-[10px] text-slate-500 border-b border-[#232a3b]">
+                                    <th class="pb-1">TIME</th>
+                                    <th class="pb-1">ID</th>
+                                    <th class="pb-1">DEFECT</th>
+                                    <th class="pb-1 text-right">ACTION</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reject-log-body" class="divide-y divide-[#232a3b]/50">
+                                <tr>
+                                    <td colspan="4" class="py-2.5 text-center text-slate-500 text-xs">
+                                        <i class="fa-solid fa-circle-check text-emerald-500 mr-1.5"></i>All units conform to Grade A
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- System Tuning Sensitivity Sub-bar -->
+                    <div class="pt-2.5 mt-2.5 border-t border-[#232a3b] flex items-center justify-between text-xs">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-slate-400 text-[11px] font-medium">Confidence:</span>
+                            <input type="range" id="conf-slider" min="0.15" max="0.75" step="0.05" value="0.42" class="w-20 accent-slate-300 cursor-pointer h-1.5 bg-slate-800 rounded" onchange="updateConfidence(this.value)">
+                            <span id="conf-val" class="text-white font-bold mono text-xs">0.42</span>
+                        </div>
+
+                        <div class="flex items-center space-x-1.5">
+                            <button onclick="toggleLineMode()" id="btn-trigger-mode" class="px-2 py-0.5 rounded bg-[#18202e] hover:bg-[#202b3d] text-slate-300 text-[10px] mono border border-[#2b374e] transition">
+                                Universal
+                            </button>
+                            <button onclick="toggleAudio()" id="btn-sound" class="p-1 px-1.5 rounded bg-[#18202e] hover:bg-[#202b3d] text-emerald-400 border border-[#2b374e] transition" title="Defect buzzer">
+                                <i class="fa-solid fa-volume-high text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Bottom Action Footer: 3 Industrial Push Buttons (Drawn at bottom of panel in sketch) -->
+                <div class="bg-[#121622] border-t border-[#232a3b] p-3 grid grid-cols-3 gap-2">
+                    <button onclick="openReportModal()" class="btn-industrial justify-center py-2 text-slate-200 hover:text-white bg-[#1a2130] hover:bg-[#222c40] border-[#2d3a52]">
+                        <i class="fa-solid fa-file-invoice text-emerald-400 text-xs"></i>
+                        <span>Audit Report</span>
                     </button>
-                    <button onclick="exportReport()" class="btn-industrial text-amber-300 hover:text-amber-200 bg-[#262015] border-[#5e4318]">
-                        <i class="fa-solid fa-file-csv mr-1 text-amber-400"></i>Export CSV
+                    <button onclick="exportReport()" class="btn-industrial justify-center py-2 text-amber-300 hover:text-amber-200 bg-[#241d13] hover:bg-[#302619] border-[#5e4318]">
+                        <i class="fa-solid fa-file-csv text-amber-400 text-xs"></i>
+                        <span>Export CSV</span>
+                    </button>
+                    <button onclick="resetBatch()" class="btn-industrial justify-center py-2 text-slate-400 hover:text-rose-400 bg-[#1c181f] hover:bg-[#291e23] border-[#3d2731]">
+                        <i class="fa-solid fa-rotate-left text-xs"></i>
+                        <span>Zero Batch</span>
                     </button>
                 </div>
-                <button onclick="resetBatch()" class="btn-industrial text-slate-400 hover:text-rose-400 hover:border-rose-800">
-                    <i class="fa-solid fa-rotate-left mr-1"></i>Zero Batch
-                </button>
-            </div>
 
-            <!-- Module 2: Quality Inspection Properties (Moved from below video) -->
-            <div class="industrial-card p-4 flex flex-col space-y-3">
-                <div class="flex items-center justify-between border-b border-[#232a3b] pb-2">
-                    <span class="text-xs font-bold text-slate-200 tracking-wider mono uppercase">Batch Inspection Properties</span>
-                    <span class="text-[10px] text-slate-400 mono">ACTIVE RUN</span>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                    <!-- Total Inspected Units -->
-                    <div class="bg-[#0e121a] p-3 rounded border border-[#1e2535]">
-                        <span class="text-[11px] text-slate-400 font-medium block">Total Inspected</span>
-                        <div class="flex items-baseline space-x-1.5 mt-0.5">
-                            <span id="stat-total" class="text-2xl font-bold text-white mono">0</span>
-                            <span class="text-xs text-slate-500">units</span>
-                        </div>
-                    </div>
-
-                    <!-- Grade A Sound Shells -->
-                    <div class="bg-[#0c1814] p-3 rounded border border-[#134e3a]">
-                        <span class="text-[11px] text-emerald-400 font-medium block">Grade A Sound</span>
-                        <div class="flex items-baseline space-x-1.5 mt-0.5">
-                            <span id="stat-good-pct" class="text-2xl font-bold text-emerald-400 mono">100%</span>
-                            <span id="stat-good-count" class="text-xs text-emerald-600 mono">0 sound</span>
-                        </div>
-                    </div>
-
-                    <!-- Cracked Shell Defects -->
-                    <div class="bg-[#1a0e10] p-3 rounded border border-[#5c1d24]">
-                        <span class="text-[11px] text-red-400 font-medium block"><i class="fa-solid fa-bolt mr-1 text-xs"></i>Cracked Shells</span>
-                        <div class="flex items-baseline space-x-1.5 mt-0.5">
-                            <span id="stat-cracked-count" class="text-2xl font-bold text-red-400 mono">0</span>
-                            <span id="stat-cracked-pct" class="text-xs text-red-500 mono">0.0%</span>
-                        </div>
-                    </div>
-
-                    <!-- Dirty Shell Defects -->
-                    <div class="bg-[#1c1409] p-3 rounded border border-[#5c3e10]">
-                        <span class="text-[11px] text-amber-400 font-medium block"><i class="fa-solid fa-droplet mr-1 text-xs"></i>Dirty Shells</span>
-                        <div class="flex items-baseline space-x-1.5 mt-0.5">
-                            <span id="stat-dirty-count" class="text-2xl font-bold text-amber-400 mono">0</span>
-                            <span id="stat-dirty-pct" class="text-xs text-amber-500 mono">0.0%</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Hidden helper fields for WS listener -->
-                <span id="stat-active-frame" class="hidden">0</span>
-                <span id="stat-defect-rate" class="hidden">0.0%</span>
-                <span id="stat-defect-count" class="hidden">0</span>
-                <span id="source-filename" class="hidden"></span>
-                <span id="active-source-badge" class="hidden">SIMULATED</span>
-            </div>
-
-            <!-- Module 3: USDA Metric Size Grading -->
-            <div class="industrial-card p-4 flex flex-col space-y-3">
-                <div class="flex items-center justify-between border-b border-[#232a3b] pb-2">
-                    <span class="text-xs font-bold text-slate-200 tracking-wider mono uppercase">USDA Size Grading</span>
-                    <span class="text-[10px] text-slate-400 mono">CALIBRATED WEIGHT</span>
-                </div>
-
-                <div class="space-y-3 pt-1">
-                    <!-- Small -->
-                    <div>
-                        <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-300 font-medium">Small (&lt; 53g)</span>
-                            <span id="size-cnt-s" class="mono font-semibold text-slate-200">0 units (0%)</span>
-                        </div>
-                        <div class="w-full bg-[#0e121a] h-2 rounded overflow-hidden border border-[#1e2535]">
-                            <div id="size-bar-s" class="bg-slate-400 h-full w-0 transition-all duration-300"></div>
-                        </div>
-                    </div>
-
-                    <!-- Medium -->
-                    <div>
-                        <div class="flex justify-between text-xs mb-1">
-                            <span class="text-emerald-400 font-medium">Medium (53g - 63g)</span>
-                            <span id="size-cnt-m" class="mono font-semibold text-emerald-300">0 units (0%)</span>
-                        </div>
-                        <div class="w-full bg-[#0e121a] h-2 rounded overflow-hidden border border-[#1e2535]">
-                            <div id="size-bar-m" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
-                        </div>
-                    </div>
-
-                    <!-- Large -->
-                    <div>
-                        <div class="flex justify-between text-xs mb-1">
-                            <span class="text-amber-400 font-medium">Large (&gt; 63g)</span>
-                            <span id="size-cnt-l" class="mono font-semibold text-amber-300">0 units (0%)</span>
-                        </div>
-                        <div class="w-full bg-[#0e121a] h-2 rounded overflow-hidden border border-[#1e2535]">
-                            <div id="size-bar-l" class="bg-amber-500 h-full w-0 transition-all duration-300"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <canvas id="sizeHistogram" class="hidden"></canvas>
-            </div>
-
-            <!-- Module 4: Rejection Solenoid Event Log -->
-            <div class="industrial-card p-4 flex flex-col space-y-2 flex-1">
-                <div class="flex items-center justify-between border-b border-[#232a3b] pb-2">
-                    <span class="text-xs font-bold text-slate-200 tracking-wider mono uppercase">Rejection Actuator Log</span>
-                    <span class="text-[10px] text-slate-400 mono">&lt;12ms PNEUMATIC</span>
-                </div>
-
-                <div class="overflow-y-auto max-h-[170px]">
-                    <table class="w-full text-left text-xs mono">
-                        <thead>
-                            <tr class="text-[10px] text-slate-500 border-b border-[#232a3b]">
-                                <th class="pb-1.5">TIME</th>
-                                <th class="pb-1.5">ID</th>
-                                <th class="pb-1.5">DEFECT</th>
-                                <th class="pb-1.5 text-right">ACTION</th>
-                            </tr>
-                        </thead>
-                        <tbody id="reject-log-body" class="divide-y divide-[#232a3b]/50">
-                            <tr>
-                                <td colspan="4" class="py-3 text-center text-slate-500 text-xs">
-                                    <i class="fa-solid fa-circle-check text-emerald-500 mr-1.5"></i>All units conform to Grade A
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Module 5: System Tuning & Sensitivity Controls -->
-            <div class="industrial-card p-3 flex items-center justify-between text-xs">
-                <div class="flex items-center space-x-2">
-                    <span class="text-slate-400">Confidence:</span>
-                    <input type="range" id="conf-slider" min="0.15" max="0.75" step="0.05" value="0.42" class="w-20 accent-slate-300 cursor-pointer" onchange="updateConfidence(this.value)">
-                    <span id="conf-val" class="text-white font-bold mono">0.42</span>
-                </div>
-
-                <div class="flex items-center space-x-2">
-                    <button onclick="toggleLineMode()" id="btn-trigger-mode" class="px-2 py-1 rounded bg-[#1a202c] hover:bg-[#252e3e] text-slate-300 text-[11px] mono border border-[#2d3748]">
-                        Universal
-                    </button>
-                    <button onclick="toggleAudio()" id="btn-sound" class="p-1.5 rounded bg-[#1a202c] hover:bg-[#252e3e] text-emerald-400 border border-[#2d3748]">
-                        <i class="fa-solid fa-volume-high"></i>
-                    </button>
-                </div>
             </div>
 
         </section>
