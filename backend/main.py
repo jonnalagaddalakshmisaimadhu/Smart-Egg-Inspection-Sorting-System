@@ -560,61 +560,69 @@ def industrial_hmi_dashboard():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EggVision Industrial SCADA Workstation</title>
+    <title>EggVision AI - Optical Inspection & Sorting</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-base: #07090e;
-            --panel-bg: #0d121a;
-            --panel-border: #1a2332;
+            --bg-base: #0a0d14;
+            --card-bg: #111622;
+            --card-border: #1e2638;
         }
         body {
             background-color: var(--bg-base);
-            color: #d1d5db;
+            color: #e2e8f0;
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
             overflow-x: hidden;
         }
         .mono { font-family: 'JetBrains Mono', monospace; }
-        .panel {
-            background-color: var(--panel-bg);
-            border: 1px solid var(--panel-border);
-            border-radius: 6px;
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
         }
-        .panel-header {
-            background: #090e15;
-            border-bottom: 1px solid var(--panel-border);
-            padding: 8px 14px;
-        }
-        .btn-industrial {
-            background: #131b26;
-            border: 1px solid #222f42;
-            color: #e2e8f0;
-            font-size: 11px;
+        .btn-action {
+            background: #182030;
+            border: 1px solid #28354d;
+            color: #cbd5e1;
+            font-size: 12px;
             font-weight: 600;
-            padding: 6px 12px;
-            border-radius: 4px;
+            padding: 7px 14px;
+            border-radius: 6px;
             transition: all 0.15s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
-        .btn-industrial:hover {
-            background: #1d2a3d;
+        .btn-action:hover {
+            background: #222d42;
             border-color: #38bdf8;
             color: #ffffff;
         }
-        .btn-active {
-            background: #0369a1 !important;
-            border-color: #38bdf8 !important;
-            color: #ffffff !important;
+        .btn-tab {
+            background: transparent;
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 6px;
+            transition: all 0.15s ease;
         }
-        /* Fullscreen container styling */
+        .btn-tab:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .btn-tab.btn-active {
+            background: #0284c7 !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 10px rgba(2, 132, 199, 0.3);
+        }
         :fullscreen #viewport-container {
             width: 100vw !important;
             height: 100vh !important;
@@ -625,316 +633,256 @@ def industrial_hmi_dashboard():
             height: 100vh !important;
             border-radius: 0 !important;
         }
-        /* Printable Audit Report styling */
         @media print {
             body { background: white !important; color: black !important; }
             header, .no-print, #upload-modal, #toast, #transport-bar { display: none !important; }
             #report-modal { position: static !important; display: block !important; background: white !important; }
-            #report-modal .panel { border: 1px solid #ccc !important; color: black !important; background: white !important; }
+            #report-modal .card { border: 1px solid #ccc !important; color: black !important; background: white !important; }
             #report-modal table th, #report-modal table td { color: black !important; border-color: #ddd !important; }
         }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
-    <!-- Top Navigation Header -->
-    <header class="bg-[#090d14] border-b border-[#18212e] px-5 py-2.5 flex flex-wrap items-center justify-between gap-4">
-        <div class="flex items-center space-x-4">
+    <!-- Top Clean Header Bar -->
+    <header class="bg-[#0e131f] border-b border-[#1c2436] px-6 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-40">
+        <!-- Brand & Source Switcher -->
+        <div class="flex items-center space-x-6">
             <div class="flex items-center space-x-2.5">
-                <div class="w-3 h-3 rounded-sm bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
+                <span class="text-xl">🥚</span>
                 <div>
-                    <span class="text-sm font-bold text-white tracking-wider mono">EGGVISION // SCADA-01</span>
-                    <span class="text-[10px] text-gray-500 block mono">HIGH-SPEED OPTICAL SORTING CELL</span>
+                    <span class="text-base font-bold text-white tracking-tight">EggVision</span>
+                    <span class="text-[10px] text-cyan-400 font-semibold block mono -mt-0.5">NEURAL INSPECTION AI</span>
                 </div>
             </div>
 
-            <div class="h-6 w-px bg-gray-800 hidden sm:block"></div>
-
-            <!-- Feed Source Switcher -->
-            <div class="flex items-center space-x-1.5 bg-[#05070a] p-1 rounded border border-gray-800">
-                <button id="btn-mode-sim" onclick="setSource('simulated')" class="btn-industrial btn-active">
-                    <i class="fa-solid fa-conveyor-belt mr-1.5"></i>Simulated
+            <!-- Segmented Source Switcher -->
+            <div class="flex items-center bg-[#080b12] p-1 rounded-lg border border-[#1e2638]">
+                <button id="btn-mode-sim" onclick="setSource('simulated')" class="btn-tab btn-active">
+                    <i class="fa-solid fa-play mr-1.5 text-xs"></i>Simulated
                 </button>
-                <button id="btn-mode-upload" onclick="triggerUploadModal()" class="btn-industrial">
-                    <i class="fa-solid fa-upload mr-1.5"></i>Upload Video
+                <button id="btn-mode-upload" onclick="triggerUploadModal()" class="btn-tab">
+                    <i class="fa-solid fa-cloud-arrow-up mr-1.5 text-xs"></i>Upload Video
                 </button>
-                <button id="btn-mode-cam" onclick="setSource('webcam')" class="btn-industrial">
-                    <i class="fa-solid fa-video mr-1.5"></i>Camera
+                <button id="btn-mode-cam" onclick="setSource('webcam')" class="btn-tab">
+                    <i class="fa-solid fa-video mr-1.5 text-xs"></i>Camera
                 </button>
             </div>
         </div>
 
-        <!-- Telemetry & Controls -->
+        <!-- Right Side Quick Actions & Status -->
         <div class="flex items-center space-x-3">
-            <div class="bg-[#0b1017] px-3 py-1 rounded border border-gray-800 flex items-center space-x-3 text-xs mono">
-                <div>
-                    <span class="text-gray-500 text-[10px] block">ENGINE:</span>
-                    <span class="text-emerald-400 font-semibold">YOLO11-GPU</span>
-                </div>
-                <div class="h-4 w-px bg-gray-800"></div>
-                <div>
-                    <span class="text-gray-500 text-[10px] block">THROUGHPUT:</span>
-                    <span id="fps-badge" class="text-cyan-400 font-semibold">52.0 FPS</span>
-                </div>
-                <div class="h-4 w-px bg-gray-800"></div>
-                <div>
-                    <span class="text-gray-500 text-[10px] block">AUDIO:</span>
-                    <button onclick="toggleAudio()" id="btn-sound" class="text-gray-300 hover:text-white">
-                        <i class="fa-solid fa-volume-high text-emerald-400"></i>
-                    </button>
-                </div>
+            <div class="hidden sm:flex items-center space-x-3 bg-[#080b12] px-3 py-1.5 rounded-md border border-[#1e2638] text-xs mono">
+                <span class="text-gray-400">FPS: <strong id="fps-badge" class="text-cyan-400 font-bold">52.0</strong></span>
+                <span class="text-gray-600">|</span>
+                <span class="text-gray-400">SRC: <strong id="active-source-badge" class="text-emerald-400 font-bold uppercase">SIMULATED</strong></span>
+                <span id="source-filename" class="hidden"></span>
+                <span id="stat-active-frame" class="hidden">0</span>
+                <span id="hdr-active-count" class="hidden">0</span>
+                <span id="hdr-cracked-count" class="hidden">0</span>
+                <span id="hdr-dirty-count" class="hidden">0</span>
+                <span id="stat-defect-rate" class="hidden">0.0%</span>
+                <span id="stat-defect-count" class="hidden">0</span>
             </div>
 
-            <!-- Audit Report Modal Trigger -->
-            <button onclick="openReportModal()" class="btn-industrial text-cyan-300 border-cyan-800/80 hover:border-cyan-400 bg-cyan-950/40">
-                <i class="fa-solid fa-file-invoice mr-1.5"></i>Audit Report
+            <button onclick="openReportModal()" class="btn-action text-cyan-300 border-cyan-800/80 hover:border-cyan-400 bg-cyan-950/40">
+                <i class="fa-solid fa-file-invoice"></i>Audit Report
             </button>
-
-            <!-- Instant CSV Download -->
-            <button onclick="exportReport()" class="btn-industrial text-amber-300 border-amber-900/60 hover:border-amber-500">
-                <i class="fa-solid fa-file-csv mr-1.5"></i>Export CSV
+            <button onclick="exportReport()" class="btn-action text-amber-300 border-amber-900/60 hover:border-amber-400 bg-amber-950/30">
+                <i class="fa-solid fa-file-csv"></i>Export CSV
             </button>
-
-            <!-- Reset Batch Counters -->
-            <button onclick="resetBatch()" class="btn-industrial text-red-400 border-red-950 hover:border-red-600">
-                <i class="fa-solid fa-rotate-left mr-1.5"></i>Zero Batch
+            <button onclick="resetBatch()" class="btn-action text-gray-400 hover:text-red-400 hover:border-red-500/60">
+                <i class="fa-solid fa-rotate-left"></i>Reset
             </button>
         </div>
     </header>
 
-    <!-- Source & Tracking Mode Status Bar -->
-    <div class="bg-[#06080c] border-b border-[#141b26] px-5 py-1.5 text-[11px] mono flex flex-wrap items-center justify-between text-gray-400 gap-2">
-        <div class="flex items-center space-x-2">
-            <span class="text-gray-500">SOURCE:</span>
-            <span id="active-source-badge" class="text-emerald-400 font-bold uppercase">SIMULATED FEED</span>
-            <span class="text-gray-600">•</span>
-            <span id="source-filename" class="text-gray-300">dataset_v2_stream</span>
-        </div>
-        
-        <div class="flex items-center space-x-4">
-            <!-- Universal Mode vs Line Mode Toggle -->
-            <div class="flex items-center space-x-2">
-                <span class="text-gray-500">TRIGGER:</span>
-                <button onclick="toggleLineMode()" id="btn-trigger-mode" class="px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-600 text-emerald-300 font-semibold hover:brightness-125">
-                    INSTANT IN-FRAME (UNIVERSAL)
-                </button>
-            </div>
-            
-            <!-- Confidence Slider -->
-            <div class="flex items-center space-x-2">
-                <span class="text-gray-500">CONF:</span>
-                <input type="range" id="conf-slider" min="0.15" max="0.75" step="0.05" value="0.42" class="w-16 accent-sky-400 cursor-pointer" onchange="updateConfidence(this.value)">
-                <span id="conf-val" class="text-sky-400 font-bold">0.42</span>
-            </div>
+    <!-- Main Workspace (2-Column Clean Layout) -->
+    <main class="flex-1 p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 max-w-[1720px] mx-auto w-full">
 
-            <span>REJECT SOLENOID: <span class="text-emerald-400 font-bold">ARMED</span></span>
-        </div>
-    </div>
-
-    <!-- Main Workstation Layout -->
-    <main class="flex-1 p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 max-w-[1720px] mx-auto w-full">
-
-        <!-- Left 8 Columns: Vision Viewport, Transport Controls & Rejection Actuator Telemetry -->
+        <!-- Left 8 Columns: Vision Stream & Direct Transport Controls -->
         <section class="lg:col-span-8 flex flex-col space-y-4">
 
-            <!-- Primary Vision Viewport Card -->
-            <div id="viewport-container" class="panel flex flex-col shadow-2xl overflow-hidden">
-                <div class="panel-header flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                        <i class="fa-solid fa-crosshairs text-cyan-400 text-xs"></i>
-                        <span class="text-xs font-bold text-gray-200 tracking-wider mono uppercase">OPTICAL SENSOR VIEWPORT // STREAM-A1</span>
-                    </div>
-                    
-                    <div class="flex items-center space-x-3 text-xs mono">
-                        <span class="text-emerald-400 font-semibold"><i class="fa-solid fa-circle text-[8px] mr-1"></i>VISIBLE: <span id="hdr-active-count" class="font-bold text-white">0</span></span>
-                        <span class="text-gray-600">•</span>
-                        <span class="text-red-400 font-semibold">CRACKED: <span id="hdr-cracked-count" class="font-bold text-white">0</span></span>
-                        <span class="text-gray-600">•</span>
-                        <span class="text-amber-400 font-semibold">DIRTY: <span id="hdr-dirty-count" class="font-bold text-white">0</span></span>
-                    </div>
-                </div>
-
-                <div class="relative bg-[#05070a] flex items-center justify-center min-h-[480px] overflow-hidden">
+            <!-- Video Card -->
+            <div id="viewport-container" class="card overflow-hidden flex flex-col shadow-xl">
+                <!-- Stream Viewport -->
+                <div class="relative bg-[#05070d] flex items-center justify-center min-h-[460px] overflow-hidden">
                     <img id="live-stream" src="/stream" class="w-full max-h-[620px] object-contain" alt="Inspection Stream">
                     
-                    <!-- HUD Crosshair lines -->
-                    <div class="absolute inset-0 pointer-events-none border border-cyan-500/10"></div>
-                    
-                    <!-- Rejection Alert Flash Banner -->
-                    <div id="rejection-alert-box" class="hidden absolute top-4 right-4 bg-red-950/95 border-2 border-red-500 text-red-200 px-4 py-2 rounded shadow-2xl text-xs mono font-bold flex items-center space-x-2.5">
+                    <!-- Defect Alert Ping Banner -->
+                    <div id="rejection-alert-box" class="hidden absolute top-4 right-4 bg-red-950/95 border-2 border-red-500 text-red-100 px-4 py-2 rounded-md shadow-2xl text-xs mono font-bold flex items-center space-x-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
-                        <span id="rejection-alert-text">DEFECT DETECTED // REJECT PULSE FIRED</span>
+                        <span id="rejection-alert-text">DEFECT DETECTED // REJECT SOLENOID FIRED</span>
                     </div>
                 </div>
 
-                <!-- Video Transport Playback Controls (Play / Stop / Full Screen) -->
-                <div id="transport-bar" class="bg-[#090d14] border-t border-[#1a2332] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
-                    <!-- Transport Buttons: Play, Pause, Stop, Replay, Full Screen -->
-                    <div class="flex items-center space-x-1.5">
-                        <button id="btn-transport-play" onclick="playbackPlay()" class="btn-industrial text-emerald-300 border-emerald-800/80 hover:border-emerald-400 bg-emerald-950/40">
-                            <i class="fa-solid fa-play mr-1.5"></i>Play
+                <!-- Transport Bar (Play / Pause / Stop / Fullscreen + Scrubber) -->
+                <div id="transport-bar" class="bg-[#0c101a] border-t border-[#1c2436] px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+                    <!-- Transport Buttons -->
+                    <div class="flex items-center space-x-2">
+                        <button id="btn-transport-play" onclick="playbackPlay()" class="btn-action text-emerald-300 border-emerald-800/80 hover:border-emerald-400 bg-emerald-950/40">
+                            <i class="fa-solid fa-play"></i>Play
                         </button>
-                        <button id="btn-transport-pause" onclick="playbackPause()" class="btn-industrial text-amber-300 border-amber-800/80 hover:border-amber-400 bg-amber-950/40">
-                            <i class="fa-solid fa-pause mr-1.5"></i>Pause
+                        <button id="btn-transport-pause" onclick="playbackPause()" class="btn-action text-amber-300 border-amber-800/80 hover:border-amber-400 bg-amber-950/40">
+                            <i class="fa-solid fa-pause"></i>Pause
                         </button>
-                        <button id="btn-transport-stop" onclick="playbackStop()" class="btn-industrial text-rose-300 border-rose-800/80 hover:border-rose-400 bg-rose-950/40">
-                            <i class="fa-solid fa-stop mr-1.5"></i>Stop
+                        <button id="btn-transport-stop" onclick="playbackStop()" class="btn-action text-rose-300 border-rose-800/80 hover:border-rose-400 bg-rose-950/40">
+                            <i class="fa-solid fa-stop"></i>Stop
                         </button>
-                        <button id="btn-transport-replay" onclick="restartPlayback()" class="btn-industrial text-gray-300 hover:text-white">
-                            <i class="fa-solid fa-arrow-rotate-left mr-1.5"></i>Replay
-                        </button>
-                        <button onclick="toggleFullScreen()" class="btn-industrial text-sky-300 border-sky-800/80 hover:border-sky-400 bg-sky-950/40">
-                            <i class="fa-solid fa-expand mr-1.5"></i>Full Screen
+                        <button onclick="toggleFullScreen()" class="btn-action text-sky-300 border-sky-800/80 hover:border-sky-400 bg-sky-950/40">
+                            <i class="fa-solid fa-expand"></i>Full Screen
                         </button>
                     </div>
 
-                    <!-- Progress Scrubber -->
-                    <div class="flex-1 flex items-center space-x-3 max-w-xl mx-2">
-                        <span id="vid-frame-current" class="text-[10px] mono text-cyan-400 font-semibold">FR: 0</span>
+                    <!-- Scrubber Timeline Slider -->
+                    <div class="flex-1 flex items-center space-x-3 max-w-lg mx-2">
+                        <span id="vid-frame-current" class="text-[11px] mono text-cyan-400 font-semibold">FR: 0</span>
                         <input type="range" id="vid-scrubber" min="0" max="100" value="0" step="1"
                                class="flex-1 accent-cyan-400 cursor-pointer h-1.5 bg-gray-800 rounded"
                                oninput="seekVideo(this.value)">
-                        <span id="vid-frame-total" class="text-[10px] mono text-gray-400 font-medium">/ 0 (0%)</span>
+                        <span id="vid-frame-total" class="text-[11px] mono text-gray-400 font-medium">/ 0 (0%)</span>
                     </div>
 
-                    <!-- Playback Status Badge -->
-                    <div class="flex items-center space-x-2 text-xs mono">
-                        <span id="playback-status-pill" class="px-2.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-600 text-emerald-300 font-bold flex items-center gap-1.5">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    <!-- Status Pill -->
+                    <div>
+                        <span id="playback-status-pill" class="px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-600 text-emerald-300 text-xs font-bold flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                             <span id="playback-status-text">PLAYING</span>
                         </span>
                     </div>
                 </div>
             </div>
 
-            <!-- Actuator Rejection Event Table -->
-            <div class="panel flex flex-col shadow-lg">
-                <div class="panel-header flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                        <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs"></i>
-                        <span class="text-xs font-bold text-gray-200 tracking-wider mono uppercase">ACTUATOR REJECTION EVENT LOG</span>
+            <!-- Quick Metrics Strip (Below Video) -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="card p-3.5 flex flex-col justify-between">
+                    <span class="text-xs text-gray-400 font-medium">Total Inspected</span>
+                    <div class="flex items-baseline space-x-2 mt-1">
+                        <span id="stat-total" class="text-2xl font-bold text-white mono">0</span>
+                        <span class="text-xs text-gray-500">units</span>
                     </div>
-                    <span class="text-[10px] mono text-gray-500">SOLENOID RESPONSE: &lt;12ms</span>
                 </div>
-                
-                <div class="overflow-x-auto p-2">
+
+                <div class="card p-3.5 flex flex-col justify-between border-emerald-900/50 bg-emerald-950/10">
+                    <span class="text-xs text-emerald-400 font-medium">Grade A Sound</span>
+                    <div class="flex items-baseline space-x-2 mt-1">
+                        <span id="stat-good-pct" class="text-2xl font-bold text-emerald-400 mono">100%</span>
+                        <span id="stat-good-count" class="text-xs text-emerald-600 mono">0 sound</span>
+                    </div>
+                </div>
+
+                <div class="card p-3.5 flex flex-col justify-between border-red-900/50 bg-red-950/10">
+                    <span class="text-xs text-red-400 font-medium">Cracked Shells</span>
+                    <div class="flex items-baseline space-x-2 mt-1">
+                        <span id="stat-cracked-count" class="text-2xl font-bold text-red-400 mono">0</span>
+                        <span id="stat-cracked-pct" class="text-xs text-red-500 mono">0.0%</span>
+                    </div>
+                </div>
+
+                <div class="card p-3.5 flex flex-col justify-between border-amber-900/50 bg-amber-950/10">
+                    <span class="text-xs text-amber-400 font-medium">Dirty Shells</span>
+                    <div class="flex items-baseline space-x-2 mt-1">
+                        <span id="stat-dirty-count" class="text-2xl font-bold text-amber-400 mono">0</span>
+                        <span id="stat-dirty-pct" class="text-xs text-amber-500 mono">0.0%</span>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right 4 Columns: Sizing & Simplified Defect Log -->
+        <section class="lg:col-span-4 flex flex-col space-y-4">
+
+            <!-- Calibrated Size Grading Card -->
+            <div class="card p-5 flex flex-col space-y-4">
+                <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+                    <h3 class="text-sm font-semibold text-white">Size Grading (USDA)</h3>
+                    <span class="text-xs text-gray-400 mono">Calibrated Weight</span>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Small -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-sky-400 font-medium">Small (&lt; 53g)</span>
+                            <span id="size-cnt-s" class="mono font-semibold text-gray-200">0 units (0%)</span>
+                        </div>
+                        <div class="w-full bg-gray-800/80 h-2.5 rounded-full overflow-hidden">
+                            <div id="size-bar-s" class="bg-sky-500 h-full w-0 transition-all duration-300 rounded-full"></div>
+                        </div>
+                    </div>
+
+                    <!-- Medium -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-emerald-400 font-medium">Medium (53g - 63g)</span>
+                            <span id="size-cnt-m" class="mono font-semibold text-gray-200">0 units (0%)</span>
+                        </div>
+                        <div class="w-full bg-gray-800/80 h-2.5 rounded-full overflow-hidden">
+                            <div id="size-bar-m" class="bg-emerald-500 h-full w-0 transition-all duration-300 rounded-full"></div>
+                        </div>
+                    </div>
+
+                    <!-- Large -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-amber-400 font-medium">Large (&gt; 63g)</span>
+                            <span id="size-cnt-l" class="mono font-semibold text-gray-200">0 units (0%)</span>
+                        </div>
+                        <div class="w-full bg-gray-800/80 h-2.5 rounded-full overflow-hidden">
+                            <div id="size-bar-l" class="bg-amber-500 h-full w-0 transition-all duration-300 rounded-full"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hidden">
+                    <canvas id="sizeHistogram"></canvas>
+                </div>
+            </div>
+
+            <!-- Recent Reject / Event Log (Clean & Compact) -->
+            <div class="card p-5 flex flex-col space-y-3 flex-1">
+                <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+                    <h3 class="text-sm font-semibold text-white">Rejection Solenoid Log</h3>
+                    <span class="text-[11px] text-gray-400 mono">&lt; 12ms Pneumatic</span>
+                </div>
+
+                <div class="overflow-y-auto max-h-[220px]">
                     <table class="w-full text-left text-xs mono">
                         <thead>
                             <tr class="text-[10px] text-gray-500 border-b border-gray-800">
                                 <th class="pb-2">TIME</th>
-                                <th class="pb-2">EGG TRACK ID</th>
-                                <th class="pb-2">DEFECT CLASSIFICATION</th>
-                                <th class="pb-2">CONFIDENCE</th>
-                                <th class="pb-2 text-right">ACTION STATUS</th>
+                                <th class="pb-2">ID</th>
+                                <th class="pb-2">DEFECT</th>
+                                <th class="pb-2 text-right">ACTION</th>
                             </tr>
                         </thead>
                         <tbody id="reject-log-body" class="divide-y divide-gray-800/60">
                             <tr>
-                                <td colspan="5" class="py-4 text-center text-gray-600 text-xs">Awaiting defect detections in video stream...</td>
+                                <td colspan="4" class="py-4 text-center text-gray-500 text-xs">
+                                    <i class="fa-solid fa-circle-check text-emerald-500 mr-1.5"></i>All units passing inspection
+                                </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
-        </section>
-
-        <!-- Right 4 Columns: KPI Matrix & Sizing Breakdown -->
-        <section class="lg:col-span-4 flex flex-col space-y-4">
-
-            <!-- Primary KPI Matrix -->
-            <div class="panel p-4 flex flex-col space-y-3.5">
-                <div class="flex items-center justify-between border-b border-gray-800 pb-2">
-                    <span class="text-xs font-bold text-gray-200 tracking-wider mono uppercase">PRODUCTION LINE KPI MATRIX</span>
-                    <span class="text-[10px] text-gray-500 mono">BATCH TELEMETRY</span>
+            <!-- Quick Settings Card (Confidence & Audio) -->
+            <div class="card p-4 flex items-center justify-between text-xs">
+                <div class="flex items-center space-x-2">
+                    <span class="text-gray-400">Confidence:</span>
+                    <input type="range" id="conf-slider" min="0.15" max="0.75" step="0.05" value="0.42" class="w-20 accent-sky-400 cursor-pointer" onchange="updateConfidence(this.value)">
+                    <span id="conf-val" class="text-sky-400 font-bold mono">0.42</span>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
-                    <!-- Live currently in frame -->
-                    <div class="bg-[#0b0e14] p-3 rounded border border-sky-950/60">
-                        <span class="text-[10px] text-sky-400 font-semibold block uppercase mono">Currently Visible</span>
-                        <div id="stat-active-frame" class="text-2xl font-bold text-sky-300 mono mt-1">0</div>
-                        <span class="text-[10px] text-gray-500 mono">In active frame</span>
-                    </div>
-
-                    <!-- Total unique inspected -->
-                    <div class="bg-[#0b0e14] p-3 rounded border border-gray-800">
-                        <span class="text-[10px] text-gray-400 font-semibold block uppercase mono">Total Inspected</span>
-                        <div id="stat-total" class="text-2xl font-bold text-white mono mt-1">0</div>
-                        <span class="text-[10px] text-gray-500 mono">Confirmed units</span>
-                    </div>
-
-                    <!-- Good Yield -->
-                    <div class="bg-[#0b0e14] p-3 rounded border border-emerald-950">
-                        <span class="text-[10px] text-emerald-400 font-semibold block uppercase mono">Grade A Yield</span>
-                        <div id="stat-good-pct" class="text-2xl font-bold text-emerald-400 mono mt-1">100.0%</div>
-                        <span id="stat-good-count" class="text-[10px] text-emerald-600 mono">0 sound shells</span>
-                    </div>
-
-                    <!-- Defect Rate -->
-                    <div class="bg-[#0b0e14] p-3 rounded border border-rose-950">
-                        <span class="text-[10px] text-rose-400 font-semibold block uppercase mono">Defect Rate</span>
-                        <div id="stat-defect-rate" class="text-2xl font-bold text-rose-400 mono mt-1">0.0%</div>
-                        <span id="stat-defect-count" class="text-[10px] text-rose-600 mono">0 non-conforming</span>
-                    </div>
-
-                    <!-- Cracked Shell Defect Counter -->
-                    <div class="bg-[#0b0e14] p-2.5 rounded border border-red-950/80">
-                        <span class="text-[10px] text-red-400 font-semibold block uppercase mono"><i class="fa-solid fa-bolt mr-1"></i>Cracked Shells</span>
-                        <div id="stat-cracked-count" class="text-lg font-bold text-red-300 mono mt-0.5">0</div>
-                        <span id="stat-cracked-pct" class="text-[10px] text-red-500 mono">0.0% of batch</span>
-                    </div>
-
-                    <!-- Dirty Shell Defect Counter -->
-                    <div class="bg-[#0b0e14] p-2.5 rounded border border-amber-950/80">
-                        <span class="text-[10px] text-amber-400 font-semibold block uppercase mono"><i class="fa-solid fa-droplet mr-1"></i>Dirty Shells</span>
-                        <div id="stat-dirty-count" class="text-lg font-bold text-amber-300 mono mt-0.5">0</div>
-                        <span id="stat-dirty-pct" class="text-[10px] text-amber-500 mono">0.0% of batch</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Size Metric Grading Distribution (Small / Medium / Large) -->
-            <div class="panel p-4 flex flex-col space-y-3 flex-1">
-                <div class="flex items-center justify-between border-b border-gray-800 pb-2">
-                    <span class="text-xs font-bold text-gray-200 tracking-wider mono uppercase">CALIBRATED SIZE GRADING</span>
-                    <span class="text-[10px] text-gray-500 mono">WEIGHT APPROX.</span>
-                </div>
-
-                <div class="space-y-3 pt-1">
-                    <div>
-                        <div class="flex justify-between text-xs mono mb-1">
-                            <span class="text-sky-400">SMALL (&lt;53g)</span>
-                            <span id="size-cnt-s" class="font-bold text-gray-200">0 units (0%)</span>
-                        </div>
-                        <div class="w-full bg-gray-800 h-2 rounded overflow-hidden">
-                            <div id="size-bar-s" class="bg-sky-500 h-full w-0 transition-all duration-300"></div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <div class="flex justify-between text-xs mono mb-1">
-                            <span class="text-emerald-400">MEDIUM (53g - 63g)</span>
-                            <span id="size-cnt-m" class="font-bold text-gray-200">0 units (0%)</span>
-                        </div>
-                        <div class="w-full bg-gray-800 h-2 rounded overflow-hidden">
-                            <div id="size-bar-m" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <div class="flex justify-between text-xs mono mb-1">
-                            <span class="text-amber-400">LARGE (&gt;63g)</span>
-                            <span id="size-cnt-l" class="font-bold text-gray-200">0 units (0%)</span>
-                        </div>
-                        <div class="w-full bg-gray-800 h-2 rounded overflow-hidden">
-                            <div id="size-bar-l" class="bg-amber-500 h-full w-0 transition-all duration-300"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex-1 min-h-[170px] mt-2">
-                    <canvas id="sizeHistogram"></canvas>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleLineMode()" id="btn-trigger-mode" class="px-2 py-1 rounded bg-[#182030] hover:bg-[#222d42] text-gray-300 text-[11px] mono">
+                        Universal
+                    </button>
+                    <button onclick="toggleAudio()" id="btn-sound" class="p-1.5 rounded bg-[#182030] hover:bg-[#222d42] text-emerald-400">
+                        <i class="fa-solid fa-volume-high"></i>
+                    </button>
                 </div>
             </div>
 
