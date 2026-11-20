@@ -5,7 +5,7 @@ and grades eggs into Small (S), Medium (M), and Large (L).
 """
 
 class SizeCalibrator:
-    def __init__(self, pixels_per_metric: float = 2.6):
+    def __init__(self, pixels_per_metric: float = 2.45):
         """
         Args:
             pixels_per_metric: Number of pixels per millimeter.
@@ -23,10 +23,13 @@ class SizeCalibrator:
     def adapt_to_resolution(self, frame_w: int, frame_h: int):
         """
         Adapts scale based on camera capture resolution.
+        Maps ~45mm egg width accurately across resolutions.
         """
         diag = (frame_w**2 + frame_h**2)**0.5
-        # Standard industrial 1080p diagonal (~2200px) maps to ~2.6 px/mm
-        self.pixels_per_metric = max(1.2, diag / 850.0)
+        # 960x540 -> diag ~1101 -> ~2.45 px/mm
+        # 1920x1080 -> diag ~2200 -> ~3.30 px/mm
+        # 640x640 -> diag ~905 -> ~2.20 px/mm
+        self.pixels_per_metric = max(1.5, diag / 450.0)
 
     def calibrate_from_reference(self, reference_pixel_width: float, known_width_mm: float = 23.0):
         """

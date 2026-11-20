@@ -88,45 +88,49 @@ class EggVisionPipeline:
         # Convert to Supervision Detections
         detections = sv.Detections.from_ultralytics(results)
 
-        # Filter out oversized or degenerate bounding boxes (e.g. bowls, tables, backgrounds)
-        if len(detections) > 0:
+        # Filter out oversized, low-confidence, or degenerate bounding boxes (bowls, hands, shadows, tables)
+        if len(detections) > 0 and detections.xyxy is not None:
             valid_indices = []
             frame_area = w * h
-            for i, xyxy in enumerate(detections.xyxy):
+            for i in range(len(detections.xyxy)):
+                xyxy = detections.xyxy[i]
+                conf = float(detections.confidence[i]) if detections.confidence is not None else 0.0
                 bw = xyxy[2] - xyxy[0]
                 bh = xyxy[3] - xyxy[1]
                 box_area = bw * bh
-                # Single egg is never > 30% of total frame or > 60% of frame dimensions
-                if box_area < (0.30 * frame_area) and (bw < 0.60 * w) and (bh < 0.60 * h) and bw > 15 and bh > 15:
+                aspect = max(bw, bh) / max(min(bw, bh), 1.0)
+
+                # Strict Egg Morphology Verification:
+                # 1. Meets confidence threshold
+                # 2. Maximum dimension < 35% of frame (prevents container/table bounding)
+                # 3. Maximum area < 10% of frame area
+                # 4. Aspect ratio <= 1.70 (eggs are ellipsoid, hands/arms/edges have high aspect)
+                # 5. Minimum size >= 24px
+                if (conf >= self.conf_threshold and
+                    box_area < (0.10 * frame_area) and
+                    (bw < 0.35 * w) and (bh < 0.35 * h) and
+                    bw >= 24 and bh >= 24 and
+                    aspect <= 1.70):
                     valid_indices.append(i)
 
             if len(valid_indices) < len(detections):
                 detections = detections[valid_indices]
 
-        # 2. Size Grading & Labels for all visible eggs
+        # 2. Size Grading for all valid eggs
         size_grades = []
-        labels = []
-        
-        if len(detections) > 0 and detections.tracker_id is not None:
-            for xyxy, cls_id, conf, tracker_id in zip(
-                detections.xyxy, detections.class_id, detections.confidence, detections.tracker_id
-            ):
+        if len(detections) > 0:
+            for xyxy in detections.xyxy:
                 bw = xyxy[2] - xyxy[0]
                 bh = xyxy[3] - xyxy[1]
                 measurement = self.calibrator.measure_and_grade(bw, bh)
-                grade = measurement["grade"]
-                size_grades.append(grade)
-
-                cls_name = self.tracker.class_names.get(int(cls_id), "good").upper()
-                label_str = f"#{tracker_id} {cls_name} [{grade}] {conf:.2f}"
-                labels.append(label_str)
+                size_grades.append(measurement["grade"])
         else:
-            size_grades = ["M"] * len(detections)
+            size_grades = []
 
-        # 3. Update Tracker Registry
-        self.tracker.update_and_count(detections, size_grades)
+        # 3. Update Tracker Registry & Obtain Confirmed Consensus Labels
+        verified_labels = self.tracker.update_and_count(detections, size_grades)
 
-        # 4. Visual Annotations on every detected egg
+        # 4. Visual Annotations on every confirmed egg
         annotated_frame = frame.copy()
 
         # Draw inspection datum line as reference
@@ -135,17 +139,17 @@ class EggVisionPipeline:
         cv2.putText(annotated_frame, "INSPECTION DATUM LINE", (12, datum_y - 6),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (80, 140, 220), 1)
 
-        # Draw boxes and labels immediately on all eggs
+        # Draw boxes and verified labels on eggs
         if len(detections) > 0:
             annotated_frame = self.box_annotator.annotate(
                 scene=annotated_frame,
                 detections=detections
             )
-            if labels:
+            if verified_labels and len(verified_labels) == len(detections):
                 annotated_frame = self.label_annotator.annotate(
                     scene=annotated_frame,
                     detections=detections,
-                    labels=labels
+                    labels=verified_labels
                 )
 
         # 5. Render Live Heads-Up Display (HUD) Banner

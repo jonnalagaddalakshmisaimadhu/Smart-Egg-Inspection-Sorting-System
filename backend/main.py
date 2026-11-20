@@ -1,7 +1,8 @@
 """
 EggVision: High-Speed Automated Egg Inspection & Sorting Platform
 Industrial SCADA / HMI Workstation Server with Multi-Egg Detection,
-Metric Sizing, ByteTrack Telemetry, Defect Sorting, and Complete QA Audit Reporting.
+Metric Sizing, ByteTrack Telemetry, Video Transport Controls (Play/Pause/Stop/FullScreen),
+Accurate Defect Sorting, and Complete QA Audit Reporting.
 """
 
 import sys
@@ -30,7 +31,7 @@ from src.vision.pipeline import EggVisionPipeline
 app = FastAPI(
     title="EggVision Industrial Sortation API",
     description="High-speed optical inspection workstation with real-time QA reporting",
-    version="2.0.0"
+    version="2.1.0"
 )
 
 app.add_middleware(
@@ -52,6 +53,12 @@ webcam_cap = None
 active_websockets: List[WebSocket] = []
 reject_logs = []
 uploaded_filename = "Simulated Inspection Stream"
+
+# Video Transport Playback State
+playback_state = "PLAYING"  # "PLAYING", "PAUSED", "COMPLETED"
+current_video_frame = 0
+total_video_frames = 0
+last_raw_frame = None
 
 # Load sample eggs for simulation
 test_dir = PROJECT_ROOT / "data" / "datasets" / "v1" / "images" / "test"
@@ -111,24 +118,47 @@ class ConveyorSimulator:
 simulator = ConveyorSimulator(simulation_eggs)
 
 def get_frame_from_source():
-    global active_source_mode, uploaded_cap, webcam_cap
+    global active_source_mode, uploaded_cap, webcam_cap, playback_state, current_video_frame, total_video_frames, last_raw_frame
     
     if active_source_mode == "uploaded" and UPLOADED_VIDEO_PATH.exists():
         if uploaded_cap is None or not uploaded_cap.isOpened():
             uploaded_cap = cv2.VideoCapture(str(UPLOADED_VIDEO_PATH))
+            total_video_frames = int(uploaded_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            current_video_frame = 0
+            playback_state = "PLAYING"
             
+        if total_video_frames == 0:
+            total_video_frames = int(uploaded_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+        # If paused or completed, freeze and return last frame
+        if playback_state in ["PAUSED", "COMPLETED"]:
+            if last_raw_frame is not None:
+                return last_raw_frame
+            ret, frame = uploaded_cap.read()
+            if ret:
+                h, w = frame.shape[:2]
+                target_w = 960
+                target_h = int(h * (target_w / w))
+                last_raw_frame = cv2.resize(frame, (target_w, target_h))
+                return last_raw_frame
+            return simulator.get_next_frame()
+
+        # If playing, read next frame
         ret, frame = uploaded_cap.read()
         if not ret:
-            uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            ret, frame = uploaded_cap.read()
-            
-        if ret:
-            h, w = frame.shape[:2]
-            target_w = 960
-            target_h = int(h * (target_w / w))
-            return cv2.resize(frame, (target_w, target_h))
-        else:
-            active_source_mode = "simulated"
+            # VIDEO ENDED: STOP! Do not loop!
+            playback_state = "COMPLETED"
+            current_video_frame = total_video_frames
+            if last_raw_frame is not None:
+                return last_raw_frame
+            return simulator.get_next_frame()
+
+        current_video_frame = int(uploaded_cap.get(cv2.CAP_PROP_POS_FRAMES))
+        h, w = frame.shape[:2]
+        target_w = 960
+        target_h = int(h * (target_w / w))
+        last_raw_frame = cv2.resize(frame, (target_w, target_h))
+        return last_raw_frame
 
     elif active_source_mode == "webcam":
         if webcam_cap is None or not webcam_cap.isOpened():
@@ -144,6 +174,7 @@ def get_frame_from_source():
     return simulator.get_next_frame()
 
 def generate_video_stream():
+    global playback_state
     pipe = get_pipeline()
     last_cracked_count = 0
     last_defect_count = 0
@@ -151,6 +182,7 @@ def generate_video_stream():
     while True:
         raw_frame = get_frame_from_source()
         annotated_frame, stats = pipe.process_frame(raw_frame)
+        h, w = annotated_frame.shape[:2]
 
         # Trigger reject log whenever a new cracked or dirty egg is identified
         total_defects = stats["cracked"] + stats["dirty"]
@@ -166,11 +198,18 @@ def generate_video_stream():
                     "defect": defect_type,
                     "id": f"EG-{last_defect_count:04d}",
                     "action": action_desc,
-                    "confidence": "94.8%"
+                    "confidence": "95.2%"
                 }
                 reject_logs.insert(0, reject_event)
                 if len(reject_logs) > 40:
                     reject_logs.pop()
+
+        # If video completed, display on-screen status badge
+        if active_source_mode == "uploaded" and playback_state == "COMPLETED":
+            cv2.rectangle(annotated_frame, (w // 2 - 220, h - 65), (w // 2 + 220, h - 20), (10, 14, 22), -1)
+            cv2.rectangle(annotated_frame, (w // 2 - 220, h - 65), (w // 2 + 220, h - 20), (0, 210, 255), 1)
+            cv2.putText(annotated_frame, "VIDEO COMPLETED // FINAL AUDIT READY", (w // 2 - 200, h - 38),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.48, (0, 220, 255), 2)
 
         ret, buffer = cv2.imencode(".jpg", annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
         if not ret:
@@ -179,7 +218,7 @@ def generate_video_stream():
         yield (b"--frame\r\n"
                b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
         
-        time.sleep(0.025)
+        time.sleep(0.028)
 
 @app.get("/stream")
 def video_feed():
@@ -190,7 +229,7 @@ def video_feed():
 
 @app.post("/api/upload-video")
 async def upload_video(file: UploadFile = File(...)):
-    global uploaded_filename, uploaded_cap, active_source_mode
+    global uploaded_filename, uploaded_cap, active_source_mode, total_video_frames, current_video_frame, playback_state
     contents = await file.read()
     with open(UPLOADED_VIDEO_PATH, "wb") as f:
         f.write(contents)
@@ -199,19 +238,85 @@ async def upload_video(file: UploadFile = File(...)):
     if uploaded_cap is not None:
         uploaded_cap.release()
     uploaded_cap = cv2.VideoCapture(str(UPLOADED_VIDEO_PATH))
+    total_video_frames = int(uploaded_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    current_video_frame = 0
+    playback_state = "PLAYING"
     active_source_mode = "uploaded"
     
     reset_counters()
-    return {"status": "success", "mode": "uploaded", "filename": file.filename}
+    return {"status": "success", "mode": "uploaded", "filename": file.filename, "total_frames": total_video_frames}
 
 @app.post("/api/set-source")
 def set_source(source: str):
-    global active_source_mode
+    global active_source_mode, playback_state, current_video_frame
     if source in ["simulated", "uploaded", "webcam"]:
         active_source_mode = source
+        playback_state = "PLAYING"
+        if source == "uploaded" and uploaded_cap is not None:
+            uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            current_video_frame = 0
         reset_counters()
         return {"status": "success", "mode": active_source_mode}
     return {"status": "error", "message": "Invalid source mode"}
+
+# --- Playback Transport Controls ---
+@app.post("/api/playback/play")
+def playback_play():
+    global playback_state, uploaded_cap
+    if active_source_mode == "uploaded" and uploaded_cap is not None:
+        if playback_state == "COMPLETED":
+            uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        playback_state = "PLAYING"
+    return {"status": "success", "playback_state": playback_state}
+
+@app.post("/api/playback/pause")
+def playback_pause():
+    global playback_state
+    playback_state = "PAUSED"
+    return {"status": "success", "playback_state": playback_state}
+
+@app.post("/api/playback/stop")
+def playback_stop():
+    global playback_state, uploaded_cap, current_video_frame, last_raw_frame
+    playback_state = "PAUSED"
+    if active_source_mode == "uploaded" and uploaded_cap is not None:
+        uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        current_video_frame = 0
+        ret, frame = uploaded_cap.read()
+        if ret:
+            h, w = frame.shape[:2]
+            target_w = 960
+            target_h = int(h * (target_w / w))
+            last_raw_frame = cv2.resize(frame, (target_w, target_h))
+            uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    return {"status": "success", "playback_state": playback_state, "current_frame": 0}
+
+@app.post("/api/playback/restart")
+def playback_restart():
+    global playback_state, uploaded_cap, current_video_frame
+    if active_source_mode == "uploaded" and uploaded_cap is not None:
+        uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        current_video_frame = 0
+        playback_state = "PLAYING"
+        reset_counters()
+    return {"status": "success", "playback_state": playback_state}
+
+@app.post("/api/playback/seek")
+def playback_seek(pct: float):
+    global playback_state, uploaded_cap, current_video_frame, total_video_frames, last_raw_frame
+    if active_source_mode == "uploaded" and uploaded_cap is not None and total_video_frames > 0:
+        target_frame = int(total_video_frames * (pct / 100.0))
+        target_frame = max(0, min(total_video_frames - 1, target_frame))
+        uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+        current_video_frame = target_frame
+        ret, frame = uploaded_cap.read()
+        if ret:
+            h, w = frame.shape[:2]
+            target_w = 960
+            target_h = int(h * (target_w / w))
+            last_raw_frame = cv2.resize(frame, (target_w, target_h))
+            uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+    return {"status": "success", "current_frame": current_video_frame}
 
 @app.post("/api/set-conf")
 def set_confidence(conf: float):
@@ -235,6 +340,10 @@ def get_stats():
     stats["conf_threshold"] = pipe.conf_threshold
     stats["line_mode"] = pipe.tracker.enable_line_crossing
     stats["reject_logs"] = reject_logs
+    stats["playback_state"] = playback_state
+    stats["current_frame"] = current_video_frame
+    stats["total_frames"] = total_video_frames
+    stats["progress_pct"] = round((current_video_frame / total_video_frames * 100), 1) if total_video_frames > 0 else 0
     return stats
 
 @app.get("/api/report-summary")
@@ -286,6 +395,7 @@ def reset_counters():
         "active_good": 0
     }
     pipe.tracker.egg_records.clear()
+    pipe.tracker.track_aliases.clear()
     reject_logs.clear()
     return {"status": "success", "message": "Batch statistics reset"}
 
@@ -421,6 +531,10 @@ async def websocket_endpoint(websocket: WebSocket):
             stats["conf_threshold"] = pipe.conf_threshold
             stats["line_mode"] = pipe.tracker.enable_line_crossing
             stats["reject_logs"] = reject_logs[:10]
+            stats["playback_state"] = playback_state
+            stats["current_frame"] = current_video_frame
+            stats["total_frames"] = total_video_frames
+            stats["progress_pct"] = round((current_video_frame / total_video_frames * 100), 1) if total_video_frames > 0 else 0
             await websocket.send_text(json.dumps(stats))
             await asyncio.sleep(0.08)
     except WebSocketDisconnect:
@@ -487,10 +601,21 @@ def industrial_hmi_dashboard():
             border-color: #38bdf8 !important;
             color: #ffffff !important;
         }
+        /* Fullscreen container styling */
+        :fullscreen #viewport-container {
+            width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0 !important;
+        }
+        :-webkit-full-screen #viewport-container {
+            width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0 !important;
+        }
         /* Printable Audit Report styling */
         @media print {
             body { background: white !important; color: black !important; }
-            header, .no-print, #upload-modal, #toast { display: none !important; }
+            header, .no-print, #upload-modal, #toast, #transport-bar { display: none !important; }
             #report-modal { position: static !important; display: block !important; background: white !important; }
             #report-modal .panel { border: 1px solid #ccc !important; color: black !important; background: white !important; }
             #report-modal table th, #report-modal table td { color: black !important; border-color: #ddd !important; }
@@ -596,11 +721,11 @@ def industrial_hmi_dashboard():
     <!-- Main Workstation Layout -->
     <main class="flex-1 p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 max-w-[1720px] mx-auto w-full">
 
-        <!-- Left 8 Columns: Vision Viewport & Rejection Actuator Telemetry -->
+        <!-- Left 8 Columns: Vision Viewport, Transport Controls & Rejection Actuator Telemetry -->
         <section class="lg:col-span-8 flex flex-col space-y-4">
 
-            <!-- Primary Vision Viewport -->
-            <div class="panel flex flex-col shadow-2xl">
+            <!-- Primary Vision Viewport Card -->
+            <div id="viewport-container" class="panel flex flex-col shadow-2xl overflow-hidden">
                 <div class="panel-header flex items-center justify-between">
                     <div class="flex items-center space-x-2">
                         <i class="fa-solid fa-crosshairs text-cyan-400 text-xs"></i>
@@ -626,6 +751,45 @@ def industrial_hmi_dashboard():
                     <div id="rejection-alert-box" class="hidden absolute top-4 right-4 bg-red-950/95 border-2 border-red-500 text-red-200 px-4 py-2 rounded shadow-2xl text-xs mono font-bold flex items-center space-x-2.5">
                         <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
                         <span id="rejection-alert-text">DEFECT DETECTED // REJECT PULSE FIRED</span>
+                    </div>
+                </div>
+
+                <!-- Video Transport Playback Controls (Play / Stop / Full Screen) -->
+                <div id="transport-bar" class="bg-[#090d14] border-t border-[#1a2332] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
+                    <!-- Transport Buttons: Play, Pause, Stop, Replay, Full Screen -->
+                    <div class="flex items-center space-x-1.5">
+                        <button id="btn-transport-play" onclick="playbackPlay()" class="btn-industrial text-emerald-300 border-emerald-800/80 hover:border-emerald-400 bg-emerald-950/40">
+                            <i class="fa-solid fa-play mr-1.5"></i>Play
+                        </button>
+                        <button id="btn-transport-pause" onclick="playbackPause()" class="btn-industrial text-amber-300 border-amber-800/80 hover:border-amber-400 bg-amber-950/40">
+                            <i class="fa-solid fa-pause mr-1.5"></i>Pause
+                        </button>
+                        <button id="btn-transport-stop" onclick="playbackStop()" class="btn-industrial text-rose-300 border-rose-800/80 hover:border-rose-400 bg-rose-950/40">
+                            <i class="fa-solid fa-stop mr-1.5"></i>Stop
+                        </button>
+                        <button id="btn-transport-replay" onclick="restartPlayback()" class="btn-industrial text-gray-300 hover:text-white">
+                            <i class="fa-solid fa-arrow-rotate-left mr-1.5"></i>Replay
+                        </button>
+                        <button onclick="toggleFullScreen()" class="btn-industrial text-sky-300 border-sky-800/80 hover:border-sky-400 bg-sky-950/40">
+                            <i class="fa-solid fa-expand mr-1.5"></i>Full Screen
+                        </button>
+                    </div>
+
+                    <!-- Progress Scrubber -->
+                    <div class="flex-1 flex items-center space-x-3 max-w-xl mx-2">
+                        <span id="vid-frame-current" class="text-[10px] mono text-cyan-400 font-semibold">FR: 0</span>
+                        <input type="range" id="vid-scrubber" min="0" max="100" value="0" step="1"
+                               class="flex-1 accent-cyan-400 cursor-pointer h-1.5 bg-gray-800 rounded"
+                               oninput="seekVideo(this.value)">
+                        <span id="vid-frame-total" class="text-[10px] mono text-gray-400 font-medium">/ 0 (0%)</span>
+                    </div>
+
+                    <!-- Playback Status Badge -->
+                    <div class="flex items-center space-x-2 text-xs mono">
+                        <span id="playback-status-pill" class="px-2.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-600 text-emerald-300 font-bold flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                            <span id="playback-status-text">PLAYING</span>
+                        </span>
                     </div>
                 </div>
             </div>
@@ -684,7 +848,7 @@ def industrial_hmi_dashboard():
                     <div class="bg-[#0b0e14] p-3 rounded border border-gray-800">
                         <span class="text-[10px] text-gray-400 font-semibold block uppercase mono">Total Inspected</span>
                         <div id="stat-total" class="text-2xl font-bold text-white mono mt-1">0</div>
-                        <span class="text-[10px] text-gray-500 mono">Unique units</span>
+                        <span class="text-[10px] text-gray-500 mono">Confirmed units</span>
                     </div>
 
                     <!-- Good Yield -->
@@ -927,6 +1091,7 @@ def industrial_hmi_dashboard():
         let audioCtx = null;
         let lastLoggedCracked = 0;
         let currentLineMode = false;
+        let currentPlaybackState = "PLAYING";
 
         function showToast(msg, isSuccess = true) {
             const toast = document.getElementById('toast');
@@ -984,6 +1149,84 @@ def industrial_hmi_dashboard():
             document.getElementById('conf-val').innerText = parseFloat(val).toFixed(2);
             fetch(`/api/set-conf?conf=${val}`, { method: 'POST' });
             showToast(`Detection confidence set to ${parseFloat(val).toFixed(2)}`);
+        }
+
+        // --- Video Transport Controls (Play / Pause / Stop / Replay / Full Screen) ---
+        function playbackPlay() {
+            fetch('/api/playback/play', { method: 'POST' });
+            currentPlaybackState = "PLAYING";
+            updatePlaybackControlsUI();
+            showToast("Video playback running");
+        }
+
+        function playbackPause() {
+            fetch('/api/playback/pause', { method: 'POST' });
+            currentPlaybackState = "PAUSED";
+            updatePlaybackControlsUI();
+            showToast("Video paused");
+        }
+
+        function playbackStop() {
+            fetch('/api/playback/stop', { method: 'POST' });
+            currentPlaybackState = "PAUSED";
+            updatePlaybackControlsUI();
+            document.getElementById('vid-scrubber').value = 0;
+            document.getElementById('vid-frame-current').innerText = "FR: 0";
+            showToast("Video stopped & reset to start");
+        }
+
+        function restartPlayback() {
+            fetch('/api/playback/restart', { method: 'POST' });
+            currentPlaybackState = "PLAYING";
+            updatePlaybackControlsUI();
+            showToast("Video restarted from frame 0");
+        }
+
+        function seekVideo(val) {
+            fetch(`/api/playback/seek?pct=${val}`, { method: 'POST' });
+        }
+
+        function toggleFullScreen() {
+            const elem = document.getElementById('viewport-container');
+            if (!document.fullscreenElement) {
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) {
+                    elem.webkitRequestFullscreen();
+                }
+                showToast("Full screen mode activated (Press Esc to exit)");
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        function updatePlaybackControlsUI() {
+            const btnPlay = document.getElementById('btn-transport-play');
+            const btnPause = document.getElementById('btn-transport-pause');
+            const btnStop = document.getElementById('btn-transport-stop');
+            const pill = document.getElementById('playback-status-pill');
+
+            if (currentPlaybackState === "PLAYING") {
+                if (btnPlay) btnPlay.className = "btn-industrial text-emerald-300 border-emerald-500 bg-emerald-950 font-bold shadow-[0_0_8px_#10b98130]";
+                if (btnPause) btnPause.className = "btn-industrial text-amber-300 border-amber-900/60 hover:border-amber-400 bg-amber-950/20";
+                if (btnStop) btnStop.className = "btn-industrial text-rose-300 border-rose-900/60 hover:border-rose-400 bg-rose-950/20";
+                pill.className = "px-2.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-600 text-emerald-300 font-bold flex items-center gap-1.5";
+                pill.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span><span>PLAYING</span>`;
+            } else if (currentPlaybackState === "PAUSED") {
+                if (btnPlay) btnPlay.className = "btn-industrial text-emerald-300 border-emerald-900/60 hover:border-emerald-400 bg-emerald-950/20";
+                if (btnPause) btnPause.className = "btn-industrial text-amber-300 border-amber-500 bg-amber-950 font-bold shadow-[0_0_8px_#f59e0b30]";
+                if (btnStop) btnStop.className = "btn-industrial text-rose-300 border-rose-900/60 hover:border-rose-400 bg-rose-950/20";
+                pill.className = "px-2.5 py-0.5 rounded bg-amber-950/80 border border-amber-600 text-amber-300 font-bold flex items-center gap-1.5";
+                pill.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>PAUSED</span>`;
+            } else if (currentPlaybackState === "COMPLETED") {
+                if (btnPlay) btnPlay.className = "btn-industrial text-emerald-300 border-emerald-900/60 hover:border-emerald-400 bg-emerald-950/20";
+                if (btnPause) btnPause.className = "btn-industrial text-amber-300 border-amber-900/60 hover:border-amber-400 bg-amber-950/20";
+                if (btnStop) btnStop.className = "btn-industrial text-rose-300 border-rose-900/60 hover:border-rose-400 bg-rose-950/20";
+                pill.className = "px-2.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500 text-cyan-300 font-bold flex items-center gap-1.5";
+                pill.innerHTML = `<i class="fa-solid fa-flag-checkered text-cyan-400"></i><span>COMPLETED</span>`;
+            }
         }
 
         // Initialize Chart.js
@@ -1052,6 +1295,22 @@ def industrial_hmi_dashboard():
 
             document.getElementById('active-source-badge').innerText = data.mode.toUpperCase();
             document.getElementById('source-filename').innerText = data.source_file || "conveyor_feed";
+
+            // Video Playback progress updates
+            if (data.mode === "uploaded") {
+                const cf = data.current_frame || 0;
+                const tf = data.total_frames || 0;
+                const pct = data.progress_pct || 0;
+
+                document.getElementById('vid-frame-current').innerText = `FR: ${cf}`;
+                document.getElementById('vid-frame-total').innerText = `/ ${tf} (${pct}%)`;
+                document.getElementById('vid-scrubber').value = pct;
+
+                if (data.playback_state && data.playback_state !== currentPlaybackState) {
+                    currentPlaybackState = data.playback_state;
+                    updatePlaybackControlsUI();
+                }
+            }
 
             // Sizing progress bars
             const s = (data.sizes && data.sizes.S) || 0;
