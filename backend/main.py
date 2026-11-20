@@ -18,6 +18,7 @@ import io
 import csv
 import json
 import asyncio
+import threading
 import cv2
 import numpy as np
 from typing import List
@@ -54,11 +55,12 @@ active_websockets: List[WebSocket] = []
 reject_logs = []
 uploaded_filename = "Simulated Inspection Stream"
 
-# Video Transport Playback State
+# Video Transport Playback State & Thread Lock
 playback_state = "PLAYING"  # "PLAYING", "PAUSED", "COMPLETED"
 current_video_frame = 0
 total_video_frames = 0
 last_raw_frame = None
+video_lock = threading.Lock()
 
 # Load sample eggs for simulation
 test_dir = PROJECT_ROOT / "data" / "datasets" / "v1" / "images" / "test"
@@ -121,55 +123,57 @@ def get_frame_from_source():
     global active_source_mode, uploaded_cap, webcam_cap, playback_state, current_video_frame, total_video_frames, last_raw_frame
     
     if active_source_mode == "uploaded" and UPLOADED_VIDEO_PATH.exists():
-        if uploaded_cap is None or not uploaded_cap.isOpened():
-            uploaded_cap = cv2.VideoCapture(str(UPLOADED_VIDEO_PATH))
-            total_video_frames = int(uploaded_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            current_video_frame = 0
-            playback_state = "PLAYING"
-            
-        if total_video_frames == 0:
-            total_video_frames = int(uploaded_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            
-        # If paused or completed, freeze and return last frame
-        if playback_state in ["PAUSED", "COMPLETED"]:
-            if last_raw_frame is not None:
-                return last_raw_frame
+        with video_lock:
+            if uploaded_cap is None or not uploaded_cap.isOpened():
+                uploaded_cap = cv2.VideoCapture(str(UPLOADED_VIDEO_PATH))
+                total_video_frames = int(uploaded_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                current_video_frame = 0
+                playback_state = "PLAYING"
+                
+            if total_video_frames == 0:
+                total_video_frames = int(uploaded_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                
+            # If paused or completed, freeze and return last frame
+            if playback_state in ["PAUSED", "COMPLETED"]:
+                if last_raw_frame is not None:
+                    return last_raw_frame
+                ret, frame = uploaded_cap.read()
+                if ret:
+                    h, w = frame.shape[:2]
+                    target_w = 960
+                    target_h = int(h * (target_w / w))
+                    last_raw_frame = cv2.resize(frame, (target_w, target_h))
+                    return last_raw_frame
+                return simulator.get_next_frame()
+
+            # If playing, read next frame
             ret, frame = uploaded_cap.read()
+            if not ret:
+                # VIDEO ENDED: STOP! Do not loop!
+                playback_state = "COMPLETED"
+                current_video_frame = total_video_frames
+                if last_raw_frame is not None:
+                    return last_raw_frame
+                return simulator.get_next_frame()
+
+            current_video_frame = int(uploaded_cap.get(cv2.CAP_PROP_POS_FRAMES))
+            h, w = frame.shape[:2]
+            target_w = 960
+            target_h = int(h * (target_w / w))
+            last_raw_frame = cv2.resize(frame, (target_w, target_h))
+            return last_raw_frame
+
+    elif active_source_mode == "webcam":
+        with video_lock:
+            if webcam_cap is None or not webcam_cap.isOpened():
+                webcam_cap = cv2.VideoCapture(0)
+                
+            ret, frame = webcam_cap.read()
             if ret:
                 h, w = frame.shape[:2]
                 target_w = 960
                 target_h = int(h * (target_w / w))
-                last_raw_frame = cv2.resize(frame, (target_w, target_h))
-                return last_raw_frame
-            return simulator.get_next_frame()
-
-        # If playing, read next frame
-        ret, frame = uploaded_cap.read()
-        if not ret:
-            # VIDEO ENDED: STOP! Do not loop!
-            playback_state = "COMPLETED"
-            current_video_frame = total_video_frames
-            if last_raw_frame is not None:
-                return last_raw_frame
-            return simulator.get_next_frame()
-
-        current_video_frame = int(uploaded_cap.get(cv2.CAP_PROP_POS_FRAMES))
-        h, w = frame.shape[:2]
-        target_w = 960
-        target_h = int(h * (target_w / w))
-        last_raw_frame = cv2.resize(frame, (target_w, target_h))
-        return last_raw_frame
-
-    elif active_source_mode == "webcam":
-        if webcam_cap is None or not webcam_cap.isOpened():
-            webcam_cap = cv2.VideoCapture(0)
-            
-        ret, frame = webcam_cap.read()
-        if ret:
-            h, w = frame.shape[:2]
-            target_w = 960
-            target_h = int(h * (target_w / w))
-            return cv2.resize(frame, (target_w, target_h))
+                return cv2.resize(frame, (target_w, target_h))
 
     return simulator.get_next_frame()
 
@@ -229,19 +233,22 @@ def video_feed():
 
 @app.post("/api/upload-video")
 async def upload_video(file: UploadFile = File(...)):
-    global uploaded_filename, uploaded_cap, active_source_mode, total_video_frames, current_video_frame, playback_state
+    global uploaded_filename, uploaded_cap, active_source_mode, total_video_frames, current_video_frame, playback_state, last_raw_frame
     contents = await file.read()
     with open(UPLOADED_VIDEO_PATH, "wb") as f:
         f.write(contents)
         
     uploaded_filename = file.filename
-    if uploaded_cap is not None:
-        uploaded_cap.release()
-    uploaded_cap = cv2.VideoCapture(str(UPLOADED_VIDEO_PATH))
-    total_video_frames = int(uploaded_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    current_video_frame = 0
-    playback_state = "PLAYING"
-    active_source_mode = "uploaded"
+    with video_lock:
+        if uploaded_cap is not None:
+            uploaded_cap.release()
+            uploaded_cap = None
+        uploaded_cap = cv2.VideoCapture(str(UPLOADED_VIDEO_PATH))
+        total_video_frames = int(uploaded_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        current_video_frame = 0
+        playback_state = "PLAYING"
+        last_raw_frame = None
+        active_source_mode = "uploaded"
     
     reset_counters()
     return {"status": "success", "mode": "uploaded", "filename": file.filename, "total_frames": total_video_frames}
@@ -250,11 +257,12 @@ async def upload_video(file: UploadFile = File(...)):
 def set_source(source: str):
     global active_source_mode, playback_state, current_video_frame
     if source in ["simulated", "uploaded", "webcam"]:
-        active_source_mode = source
-        playback_state = "PLAYING"
-        if source == "uploaded" and uploaded_cap is not None:
-            uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            current_video_frame = 0
+        with video_lock:
+            active_source_mode = source
+            playback_state = "PLAYING"
+            if source == "uploaded" and uploaded_cap is not None:
+                uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                current_video_frame = 0
         reset_counters()
         return {"status": "success", "mode": active_source_mode}
     return {"status": "error", "message": "Invalid source mode"}
@@ -263,59 +271,64 @@ def set_source(source: str):
 @app.post("/api/playback/play")
 def playback_play():
     global playback_state, uploaded_cap
-    if active_source_mode == "uploaded" and uploaded_cap is not None:
-        if playback_state == "COMPLETED":
-            uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        playback_state = "PLAYING"
+    with video_lock:
+        if active_source_mode == "uploaded" and uploaded_cap is not None:
+            if playback_state == "COMPLETED":
+                uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            playback_state = "PLAYING"
     return {"status": "success", "playback_state": playback_state}
 
 @app.post("/api/playback/pause")
 def playback_pause():
     global playback_state
-    playback_state = "PAUSED"
+    with video_lock:
+        playback_state = "PAUSED"
     return {"status": "success", "playback_state": playback_state}
 
 @app.post("/api/playback/stop")
 def playback_stop():
     global playback_state, uploaded_cap, current_video_frame, last_raw_frame
-    playback_state = "PAUSED"
-    if active_source_mode == "uploaded" and uploaded_cap is not None:
-        uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        current_video_frame = 0
-        ret, frame = uploaded_cap.read()
-        if ret:
-            h, w = frame.shape[:2]
-            target_w = 960
-            target_h = int(h * (target_w / w))
-            last_raw_frame = cv2.resize(frame, (target_w, target_h))
+    with video_lock:
+        playback_state = "PAUSED"
+        if active_source_mode == "uploaded" and uploaded_cap is not None:
             uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            current_video_frame = 0
+            ret, frame = uploaded_cap.read()
+            if ret:
+                h, w = frame.shape[:2]
+                target_w = 960
+                target_h = int(h * (target_w / w))
+                last_raw_frame = cv2.resize(frame, (target_w, target_h))
+                uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
     return {"status": "success", "playback_state": playback_state, "current_frame": 0}
 
 @app.post("/api/playback/restart")
 def playback_restart():
     global playback_state, uploaded_cap, current_video_frame
-    if active_source_mode == "uploaded" and uploaded_cap is not None:
-        uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        current_video_frame = 0
-        playback_state = "PLAYING"
-        reset_counters()
+    with video_lock:
+        if active_source_mode == "uploaded" and uploaded_cap is not None:
+            uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            current_video_frame = 0
+            playback_state = "PLAYING"
+    reset_counters()
     return {"status": "success", "playback_state": playback_state}
 
 @app.post("/api/playback/seek")
 def playback_seek(pct: float):
     global playback_state, uploaded_cap, current_video_frame, total_video_frames, last_raw_frame
-    if active_source_mode == "uploaded" and uploaded_cap is not None and total_video_frames > 0:
-        target_frame = int(total_video_frames * (pct / 100.0))
-        target_frame = max(0, min(total_video_frames - 1, target_frame))
-        uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
-        current_video_frame = target_frame
-        ret, frame = uploaded_cap.read()
-        if ret:
-            h, w = frame.shape[:2]
-            target_w = 960
-            target_h = int(h * (target_w / w))
-            last_raw_frame = cv2.resize(frame, (target_w, target_h))
+    with video_lock:
+        if active_source_mode == "uploaded" and uploaded_cap is not None and total_video_frames > 0:
+            target_frame = int(total_video_frames * (pct / 100.0))
+            target_frame = max(0, min(total_video_frames - 1, target_frame))
             uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+            current_video_frame = target_frame
+            ret, frame = uploaded_cap.read()
+            if ret:
+                h, w = frame.shape[:2]
+                target_w = 960
+                target_h = int(h * (target_w / w))
+                last_raw_frame = cv2.resize(frame, (target_w, target_h))
+                uploaded_cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
     return {"status": "success", "current_frame": current_video_frame}
 
 @app.post("/api/set-conf")
