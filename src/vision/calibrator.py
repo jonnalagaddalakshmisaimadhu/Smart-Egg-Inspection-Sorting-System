@@ -19,6 +19,7 @@ class SizeCalibrator:
         # Large  (L): > 63g   (~ > 2350 mm²)
         self.small_max_area = 1900.0
         self.medium_max_area = 2350.0
+        self.running_areas = []
 
     def adapt_to_resolution(self, frame_w: int, frame_h: int):
         """
@@ -26,9 +27,6 @@ class SizeCalibrator:
         Maps ~45mm egg width accurately across resolutions.
         """
         diag = (frame_w**2 + frame_h**2)**0.5
-        # 960x540 -> diag ~1101 -> ~2.45 px/mm
-        # 1920x1080 -> diag ~2200 -> ~3.30 px/mm
-        # 640x640 -> diag ~905 -> ~2.20 px/mm
         self.pixels_per_metric = max(1.5, diag / 450.0)
 
     def calibrate_from_reference(self, reference_pixel_width: float, known_width_mm: float = 23.0):
@@ -43,22 +41,38 @@ class SizeCalibrator:
     def measure_and_grade(self, width_px: float, height_px: float):
         """
         Measures bounding box dimensions in mm and determines size grade.
+        Uses adaptive batch median grading for multi-resolution conveyor footage.
         
         Returns:
             dict containing width_mm, height_mm, area_mm2, and size_grade ('S', 'M', 'L')
         """
         width_mm = width_px / self.pixels_per_metric
         height_mm = height_px / self.pixels_per_metric
-        
-        # Approximate surface projection area (ellipse formula: pi * a * b)
         area_mm2 = 3.14159 * (width_mm / 2.0) * (height_mm / 2.0)
-        
-        if area_mm2 < self.small_max_area:
-            grade = "S"
-        elif area_mm2 <= self.medium_max_area:
-            grade = "M"
+        raw_box_area = width_px * height_px
+
+        if 400 < raw_box_area < 65000:
+            self.running_areas.append(raw_box_area)
+            if len(self.running_areas) > 150:
+                self.running_areas.pop(0)
+
+        # Adaptive batch sizing: grades relative to batch median egg size
+        if len(self.running_areas) >= 5:
+            sorted_areas = sorted(self.running_areas)
+            med = sorted_areas[len(sorted_areas) // 2]
+            if raw_box_area < 0.88 * med:
+                grade = "S"
+            elif raw_box_area <= 1.12 * med:
+                grade = "M"
+            else:
+                grade = "L"
         else:
-            grade = "L"
+            if area_mm2 < self.small_max_area:
+                grade = "S"
+            elif area_mm2 <= self.medium_max_area:
+                grade = "M"
+            else:
+                grade = "L"
 
         return {
             "width_mm": round(width_mm, 1),

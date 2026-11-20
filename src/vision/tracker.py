@@ -238,10 +238,20 @@ class EggTracker:
                 self.stats["sizes"][grade] += 1
 
     def get_summary(self):
-        # Dynamically synchronize size breakdown with confirmed records
-        s_cnt = sum(1 for r in self.egg_records.values() if r.get("counted") and r.get("grade") == "S")
-        m_cnt = sum(1 for r in self.egg_records.values() if r.get("counted") and r.get("grade") == "M")
-        l_cnt = sum(1 for r in self.egg_records.values() if r.get("counted") and r.get("grade") == "L")
+        # Dynamically synchronize all cumulative counts with confirmed unique records
+        confirmed = [r for r in self.egg_records.values() if r.get("counted")]
+        total = len(confirmed)
+        cracked = sum(1 for r in confirmed if r.get("worst_class") == 0)
+        dirty = sum(1 for r in confirmed if r.get("worst_class") == 1)
+        good = sum(1 for r in confirmed if r.get("worst_class") == 2)
+        s_cnt = sum(1 for r in confirmed if r.get("grade") == "S")
+        m_cnt = sum(1 for r in confirmed if r.get("grade") == "M")
+        l_cnt = sum(1 for r in confirmed if r.get("grade") == "L")
+
+        self.stats["total_passed"] = total
+        self.stats["cracked"] = cracked
+        self.stats["dirty"] = dirty
+        self.stats["good"] = good
         self.stats["sizes"] = {"S": s_cnt, "M": m_cnt, "L": l_cnt}
         return self.stats
 

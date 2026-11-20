@@ -158,6 +158,8 @@ class EggVisionPipeline:
 
         total_unique = stats["total_passed"]
         cracked_unique = stats["cracked"]
+        dirty_unique = stats["dirty"]
+        total_defects = cracked_unique + dirty_unique
         good_unique = stats["good"]
         
         active_in_frame = stats["active_in_frame"]
@@ -167,18 +169,18 @@ class EggVisionPipeline:
         m_cnt = stats["sizes"]["M"]
         l_cnt = stats["sizes"]["L"]
 
-        # Draw top HUD bar
+        # Draw top HUD bar with authentic industrial styling
         cv2.rectangle(annotated_frame, (0, 0), (w, 55), (15, 18, 24), -1)
         
-        hud_text_1 = f"IN FRAME: {active_in_frame} | TOTAL UNIQUE: {total_unique} | DEFECTS: {cracked_unique} | S:{s_cnt} M:{m_cnt} L:{l_cnt}"
+        hud_text_1 = f"IN FRAME: {active_in_frame} | TOTAL UNIQUE: {total_unique} | DEFECTS: {total_defects} | S:{s_cnt} M:{m_cnt} L:{l_cnt}"
         hud_text_2 = f"FPS: {stats['fps']:.1f} | EGGVISION NEURAL ENGINE"
         
         cv2.putText(annotated_frame, hud_text_1, (12, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (255, 255, 255), 2)
-        cv2.putText(annotated_frame, hud_text_2, (12, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 220, 255), 1)
+        cv2.putText(annotated_frame, hud_text_2, (12, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (140, 190, 250), 1)
 
         # Immediate visual alert if ANY cracked egg is in frame right now
         if active_cracked > 0:
             cv2.putText(annotated_frame, f"CRACKED DEFECT VISIBLE ({active_cracked})", 
-                        (w - 290, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 0, 255), 2)
+                        (w - 290, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (50, 50, 240), 2)
 
         return annotated_frame, stats
