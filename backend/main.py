@@ -53,6 +53,7 @@ uploaded_cap = None
 webcam_cap = None
 active_websockets: List[WebSocket] = []
 reject_logs = []
+logged_reject_ids = set()
 uploaded_filename = "Simulated Inspection Stream"
 
 # Video Transport Playback State & Thread Lock
@@ -178,35 +179,35 @@ def get_frame_from_source():
     return simulator.get_next_frame()
 
 def generate_video_stream():
-    global playback_state
+    global playback_state, logged_reject_ids, reject_logs
     pipe = get_pipeline()
-    last_cracked_count = 0
-    last_defect_count = 0
     
     while True:
         raw_frame = get_frame_from_source()
         annotated_frame, stats = pipe.process_frame(raw_frame)
         h, w = annotated_frame.shape[:2]
 
-        # Trigger reject log whenever a new cracked or dirty egg is identified
-        total_defects = stats["cracked"] + stats["dirty"]
-        if total_defects > last_defect_count:
-            diff = total_defects - last_defect_count
-            last_defect_count = total_defects
-            defect_type = "CRACKED_SHELL" if stats["cracked"] > last_cracked_count else "DIRTY_SHELL"
-            last_cracked_count = stats["cracked"]
-            action_desc = "EJECTOR_SOLENOID_FIRED" if defect_type == "CRACKED_SHELL" else "DIVERT_PNEUMATIC_PULSE"
-            for _ in range(diff):
-                reject_event = {
-                    "timestamp": time.strftime("%H:%M:%S"),
-                    "defect": defect_type,
-                    "id": f"EG-{last_defect_count:04d}",
-                    "action": action_desc,
-                    "confidence": "95.2%"
-                }
-                reject_logs.insert(0, reject_event)
-                if len(reject_logs) > 40:
-                    reject_logs.pop()
+        # Trigger real-time reject actuator event whenever a verified defective egg is registered
+        for rec in list(pipe.tracker.egg_records.values()):
+            if rec.get("counted") and rec.get("worst_class") in [0, 1]:
+                egg_id = rec.get("id", f"EG-{rec.get('tracker_id', 0):04d}")
+                if egg_id not in logged_reject_ids:
+                    logged_reject_ids.add(egg_id)
+                    cls_id = rec.get("worst_class")
+                    defect_type = "CRACKED_SHELL" if cls_id == 0 else "DIRTY_SHELL"
+                    action_desc = "EJECTOR_SOLENOID_FIRED" if cls_id == 0 else "DIVERT_PNEUMATIC_PULSE"
+                    conf_val = rec.get("confidence", 0.85)
+                    conf_pct = f"{int(conf_val * 100)}%" if conf_val <= 1.0 else f"{int(conf_val)}%"
+                    reject_event = {
+                        "timestamp": rec.get("last_seen", time.strftime("%H:%M:%S")),
+                        "defect": defect_type,
+                        "id": egg_id,
+                        "action": action_desc,
+                        "confidence": conf_pct
+                    }
+                    reject_logs.insert(0, reject_event)
+                    if len(reject_logs) > 40:
+                        reject_logs.pop()
 
         # If video completed, display on-screen status badge
         if active_source_mode == "uploaded" and playback_state == "COMPLETED":
@@ -394,7 +395,7 @@ def get_report_summary():
 
 @app.post("/api/reset")
 def reset_counters():
-    global reject_logs
+    global reject_logs, logged_reject_ids
     pipe = get_pipeline()
     pipe.tracker.stats = {
         "total_passed": 0,
@@ -410,6 +411,7 @@ def reset_counters():
     pipe.tracker.egg_records.clear()
     pipe.tracker.track_aliases.clear()
     reject_logs.clear()
+    logged_reject_ids.clear()
     return {"status": "success", "message": "Batch statistics reset"}
 
 @app.get("/api/export-report")
@@ -1375,21 +1377,31 @@ def industrial_hmi_dashboard():
 
             // Reject log table
             const tbody = document.getElementById('reject-log-body');
-            if (data.reject_logs && data.reject_logs.length > 0) {
-                tbody.innerHTML = data.reject_logs.slice(0, 6).map(log => `
-                    <tr class="hover:bg-[#FAF9F6] text-[#18181B]">
-                        <td class="py-1 text-[#71717A]">${log.timestamp}</td>
-                        <td class="py-1 text-[#18181B] font-bold">${log.id}</td>
-                        <td class="py-1 ${log.defect.includes('CRACKED') ? 'text-[#DC2626]' : 'text-[#D97706]'} font-semibold">
-                            ${log.defect}
-                        </td>
-                        <td class="py-1 text-right">
-                            <span class="px-2 py-0.5 rounded ${log.defect.includes('CRACKED') ? 'bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]' : 'bg-[#FFFBEB] text-[#D97706] border border-[#FDE68A]'} text-[10px]">
-                                ${log.action}
-                            </span>
-                        </td>
-                    </tr>
-                `).join('');
+            if (tbody) {
+                if (data.reject_logs && data.reject_logs.length > 0) {
+                    tbody.innerHTML = data.reject_logs.slice(0, 6).map(log => `
+                        <tr class="hover:bg-[#FAF9F6] text-[#18181B]">
+                            <td class="py-1 text-[#71717A]">${log.timestamp}</td>
+                            <td class="py-1 text-[#18181B] font-bold">${log.id}</td>
+                            <td class="py-1 ${log.defect.includes('CRACKED') ? 'text-[#DC2626]' : 'text-[#D97706]'} font-semibold">
+                                ${log.defect}
+                            </td>
+                            <td class="py-1 text-right">
+                                <span class="px-2 py-0.5 rounded ${log.defect.includes('CRACKED') ? 'bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]' : 'bg-[#FFFBEB] text-[#D97706] border border-[#FDE68A]'} text-[10px]">
+                                    ${log.action}
+                                </span>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="py-2.5 text-center text-[#71717A] text-xs">
+                                <i class="fa-solid fa-circle-check text-[#166534] mr-1.5"></i>All units conform to Grade A
+                            </td>
+                        </tr>
+                    `;
+                }
             }
         };
 
@@ -1438,6 +1450,16 @@ def industrial_hmi_dashboard():
 
         function resetBatch() {
             lastLoggedCracked = 0;
+            const tbody = document.getElementById('reject-log-body');
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="py-2.5 text-center text-[#71717A] text-xs">
+                            <i class="fa-solid fa-circle-check text-[#166534] mr-1.5"></i>All units conform to Grade A
+                        </td>
+                    </tr>
+                `;
+            }
             fetch('/api/reset', { method: 'POST' });
             showToast("Batch counters zeroed out");
         }
