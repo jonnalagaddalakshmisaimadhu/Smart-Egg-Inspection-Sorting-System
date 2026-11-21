@@ -560,75 +560,126 @@ def industrial_hmi_dashboard():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EggVision - Automated Inspection System</title>
+    <title>EggVision — Optical Grading & Quality Sorter</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-base: #0b0e14;
-            --surface-card: #131722;
-            --surface-card-hover: #191f2c;
-            --border-color: #232a3b;
+            --bg-editorial: #F8F7F4;
+            --card-bg: #FFFFFF;
+            --card-inset: #FAF9F6;
+            --border-warm: #E4E2DC;
+            --border-strong: #D4D2CB;
+            --text-main: #18181B;
+            --text-muted: #71717A;
+            --accent-orange: #E05A2B;
+            --accent-green: #1B4332;
         }
         body {
-            background-color: var(--bg-base);
-            color: #f1f5f9;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-editorial);
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
             margin: 0;
             padding: 0;
             overflow-x: hidden;
+            letter-spacing: -0.01em;
         }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        .industrial-card {
-            background-color: var(--surface-card);
-            border: 1px solid var(--border-color);
+        .heading-editorial {
+            font-family: 'Space Grotesk', -apple-system, sans-serif;
+            letter-spacing: -0.03em;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-variant-numeric: tabular-nums;
+        }
+        .bento-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-warm);
             border-radius: 8px;
+            transition: border-color 0.15s ease;
         }
-        /* Real-Time Industrial Push Buttons (No Neon / No AI Blue) */
-        .btn-industrial {
-            background: #1a202c;
-            border: 1px solid #2d3748;
-            color: #cbd5e1;
+        .bento-card:hover {
+            border-color: #A1A1AA;
+        }
+        .btn-editorial {
+            background: #FFFFFF;
+            border: 1px solid var(--border-strong);
+            color: #18181B;
             font-size: 12px;
             font-weight: 600;
             padding: 6px 14px;
-            border-radius: 5px;
-            transition: all 0.12s ease;
+            border-radius: 6px;
+            transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
             display: inline-flex;
             align-items: center;
             gap: 6px;
             cursor: pointer;
         }
-        .btn-industrial:hover {
-            background: #252e3e;
-            border-color: #4a5568;
-            color: #ffffff;
+        .btn-editorial:hover {
+            background: #F4F2EB;
+            border-color: #18181B;
+            color: #18181B;
+        }
+        .btn-editorial-primary {
+            background: #18181B;
+            border: 1px solid #18181B;
+            color: #FFFFFF;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 6px;
+            transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+        .btn-editorial-primary:hover {
+            background: #27272A;
+            border-color: #27272A;
+        }
+        .btn-editorial-accent {
+            background: #E05A2B;
+            border: 1px solid #E05A2B;
+            color: #FFFFFF;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 6px;
+            transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+        .btn-editorial-accent:hover {
+            background: #C84B1A;
+            border-color: #C84B1A;
         }
         .btn-source-tab {
-            background: #151a24;
-            border: 1px solid #232a3b;
-            color: #94a3b8;
+            background: #FAF9F6;
+            border: 1px solid var(--border-warm);
+            color: #52525B;
             font-size: 11px;
             font-weight: 600;
             padding: 5px 12px;
-            border-radius: 4px;
+            border-radius: 5px;
             transition: all 0.12s ease;
             cursor: pointer;
         }
         .btn-source-tab:hover {
-            background: #1f2737;
-            color: #ffffff;
-            border-color: #3b465c;
+            background: #F4F2EB;
+            border-color: #18181B;
+            color: #18181B;
         }
         .btn-source-tab.btn-active {
-            background: #283347 !important;
-            color: #ffffff !important;
-            border-color: #4f5f7e !important;
-            font-weight: 700;
+            background: #18181B !important;
+            color: #FFFFFF !important;
+            border-color: #18181B !important;
         }
         :fullscreen #viewport-container {
             width: 100vw !important;
@@ -644,21 +695,27 @@ def industrial_hmi_dashboard():
             body { background: white !important; color: black !important; }
             header, .no-print, #upload-modal, #toast, #transport-bar { display: none !important; }
             #report-modal { position: static !important; display: block !important; background: white !important; }
-            #report-modal .industrial-card { border: 1px solid #ccc !important; color: black !important; background: white !important; }
+            #report-modal .bento-card { border: 1px solid #ccc !important; color: black !important; background: white !important; }
             #report-modal table th, #report-modal table td { color: black !important; border-color: #ddd !important; }
         }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
-    <!-- Top Navigation Header: Just EggVision Branding Alone -->
-    <header class="bg-[#10141d] border-b border-[#1e2433] px-6 py-3 flex items-center justify-between">
-        <div class="flex items-center space-x-3">
+    <!-- Top Navigation Header: Editorial Minimalist -->
+    <header class="bg-[#FFFFFF] border-b border-[#E4E2DC] px-6 py-3.5 flex items-center justify-between">
+        <div class="flex items-center space-x-3.5">
             <span class="text-2xl">🥚</span>
-            <div class="flex items-baseline space-x-2.5">
-                <span class="text-lg font-bold text-white tracking-wide">EggVision</span>
-                <span class="text-xs text-slate-400 font-medium pl-2.5 border-l border-slate-700">Autonomous Optical Inspection & Quality Sorter</span>
+            <div class="flex items-baseline space-x-3">
+                <span class="text-xl font-bold text-[#18181B] tracking-tight heading-editorial">EggVision</span>
+                <span class="text-xs text-[#71717A] font-medium pl-3 border-l border-[#D4D2CB]">Optical Egg Grading & Defect Sorter</span>
             </div>
+        </div>
+        <div class="flex items-center space-x-3 text-xs mono">
+            <span class="px-2.5 py-1 rounded bg-[#F0FDF4] border border-[#BBF7D0] text-[#166534] font-semibold flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#166534]"></span>
+                SYSTEM OPERATIONAL
+            </span>
         </div>
     </header>
 
@@ -669,75 +726,75 @@ def industrial_hmi_dashboard():
         <section class="lg:col-span-7 flex flex-col">
 
             <!-- Primary Vision Station Container -->
-            <div id="viewport-container" class="industrial-card overflow-hidden flex flex-col shadow-2xl h-full justify-between">
+            <div id="viewport-container" class="bento-card overflow-hidden flex flex-col h-full justify-between shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
                 
                 <!-- Attached Source Selection Header Directly on Upper of Video Screen -->
-                <div class="bg-[#141924] border-b border-[#232a3b] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
+                <div class="bg-[#FAF9F6] border-b border-[#E4E2DC] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
                     <!-- Source Mode Switcher -->
                     <div class="flex items-center space-x-1.5">
                         <button id="btn-mode-sim" onclick="setSource('simulated')" class="btn-source-tab btn-active">
-                            <i class="fa-solid fa-play mr-1.5 text-[10px]"></i>Simulated
+                            <i class="fa-solid fa-play mr-1.5 text-[10px]"></i>Simulated Feed
                         </button>
                         <button id="btn-mode-upload" onclick="triggerUploadModal()" class="btn-source-tab">
                             <i class="fa-solid fa-cloud-arrow-up mr-1.5 text-[10px]"></i>Upload Video
                         </button>
                         <button id="btn-mode-cam" onclick="setSource('webcam')" class="btn-source-tab">
-                            <i class="fa-solid fa-video mr-1.5 text-[10px]"></i>Camera
+                            <i class="fa-solid fa-video mr-1.5 text-[10px]"></i>Live Camera
                         </button>
                     </div>
 
                     <!-- Live Optical Sensor Telemetry -->
-                    <div class="flex items-center space-x-3 text-xs mono text-slate-400">
-                        <span>FPS: <strong id="fps-badge" class="text-white font-bold">52.0</strong></span>
-                        <span class="text-slate-600">|</span>
-                        <span>VISIBLE: <strong id="hdr-active-count" class="text-emerald-400 font-bold">0</strong></span>
+                    <div class="flex items-center space-x-3 text-xs mono text-[#71717A]">
+                        <span>FPS: <strong id="fps-badge" class="text-[#18181B] font-bold">52.0</strong></span>
+                        <span class="text-[#D4D2CB]">|</span>
+                        <span>IN FRAME: <strong id="hdr-active-count" class="text-[#1B4332] font-bold">0</strong></span>
                         <span id="hdr-cracked-count" class="hidden">0</span>
                         <span id="hdr-dirty-count" class="hidden">0</span>
                     </div>
                 </div>
 
-                <!-- Video Viewport -->
-                <div class="relative bg-[#07090f] flex-1 flex items-center justify-center min-h-[460px] max-h-[640px] overflow-hidden">
+                <!-- Video Viewport (Deep Charcoal Frame for maximum contrast) -->
+                <div class="relative bg-[#18181B] flex-1 flex items-center justify-center min-h-[460px] max-h-[640px] overflow-hidden">
                     <img id="live-stream" src="/stream" class="w-full max-h-[620px] object-contain" alt="Inspection Stream">
                     
                     <!-- Defect Alert Banner -->
-                    <div id="rejection-alert-box" class="hidden absolute top-4 right-4 bg-red-950/95 border border-red-600 text-red-100 px-4 py-2 rounded shadow-2xl text-xs mono font-bold flex items-center space-x-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
-                        <span id="rejection-alert-text">DEFECT DETECTED // PNEUMATIC SOLENOID ARMED</span>
+                    <div id="rejection-alert-box" class="hidden absolute top-4 right-4 bg-[#FEF2F2] border border-[#DC2626] text-[#991B1B] px-4 py-2 rounded shadow-sm text-xs mono font-bold flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full bg-[#DC2626]"></span>
+                        <span id="rejection-alert-text">DEFECT IDENTIFIED // PNEUMATIC ACTUATOR FIRED</span>
                     </div>
                 </div>
 
                 <!-- Attached Transport Bar Directly Underneath Video -->
-                <div id="transport-bar" class="bg-[#121620] border-t border-[#232a3b] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
+                <div id="transport-bar" class="bg-[#FAF9F6] border-t border-[#E4E2DC] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
                     <!-- Transport Buttons: Play, Pause, Stop, Full Screen -->
                     <div class="flex items-center space-x-1.5">
-                        <button id="btn-transport-play" onclick="playbackPlay()" class="btn-industrial text-emerald-400 hover:text-emerald-300">
+                        <button id="btn-transport-play" onclick="playbackPlay()" class="btn-editorial text-[#166534]">
                             <i class="fa-solid fa-play"></i>Play
                         </button>
-                        <button id="btn-transport-pause" onclick="playbackPause()" class="btn-industrial text-amber-400 hover:text-amber-300">
+                        <button id="btn-transport-pause" onclick="playbackPause()" class="btn-editorial text-[#B45309]">
                             <i class="fa-solid fa-pause"></i>Pause
                         </button>
-                        <button id="btn-transport-stop" onclick="playbackStop()" class="btn-industrial text-rose-400 hover:text-rose-300">
+                        <button id="btn-transport-stop" onclick="playbackStop()" class="btn-editorial text-[#DC2626]">
                             <i class="fa-solid fa-stop"></i>Stop
                         </button>
-                        <button onclick="toggleFullScreen()" class="btn-industrial text-slate-300 hover:text-white">
+                        <button onclick="toggleFullScreen()" class="btn-editorial text-[#52525B]">
                             <i class="fa-solid fa-expand"></i>Full Screen
                         </button>
                     </div>
 
                     <!-- Progress Scrubber Slider -->
                     <div class="flex-1 flex items-center space-x-3 max-w-sm mx-2">
-                        <span id="vid-frame-current" class="text-[11px] mono text-slate-300 font-semibold">FR: 0</span>
+                        <span id="vid-frame-current" class="text-[11px] mono text-[#18181B] font-semibold">FR: 0</span>
                         <input type="range" id="vid-scrubber" min="0" max="100" value="0" step="1"
-                               class="flex-1 accent-slate-300 cursor-pointer h-1.5 bg-slate-800 rounded"
+                               class="flex-1 accent-[#18181B] cursor-pointer h-1.5 bg-[#E4E2DC] rounded"
                                oninput="seekVideo(this.value)">
-                        <span id="vid-frame-total" class="text-[11px] mono text-slate-400 font-medium">/ 0 (0%)</span>
+                        <span id="vid-frame-total" class="text-[11px] mono text-[#71717A] font-medium">/ 0 (0%)</span>
                     </div>
 
                     <!-- Playback Status Badge -->
                     <div>
-                        <span id="playback-status-pill" class="px-2.5 py-0.5 rounded bg-emerald-950/70 border border-emerald-700 text-emerald-400 text-xs font-bold flex items-center gap-1.5">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span id="playback-status-pill" class="px-2.5 py-0.5 rounded bg-[#F0FDF4] border border-[#BBF7D0] text-[#166534] text-xs font-bold flex items-center gap-1.5 mono">
+                            <span class="w-1.5 h-1.5 rounded-full bg-[#166534]"></span>
                             <span id="playback-status-text">PLAYING</span>
                         </span>
                     </div>
@@ -747,69 +804,68 @@ def industrial_hmi_dashboard():
 
         </section>
 
-        <!-- Right 5 Columns: Unified Precision Control & Telemetry Station -->
+        <!-- Right 5 Columns: Unified Precision Control & Telemetry Station (Bento Grid) -->
         <section class="lg:col-span-5 flex flex-col">
 
             <!-- Primary Right Console Enclosure (Matches Left Video Station Height & Style) -->
-            <div class="industrial-card overflow-hidden flex flex-col h-full shadow-2xl justify-between">
+            <div class="bento-card overflow-hidden flex flex-col h-full justify-between shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
 
                 <!-- 1. Console Header -->
-                <div class="bg-[#141924] border-b border-[#232a3b] px-4 py-2.5 flex items-center justify-between">
+                <div class="bg-[#FAF9F6] border-b border-[#E4E2DC] px-4 py-2.5 flex items-center justify-between">
                     <div class="flex items-center space-x-2">
-                        <i class="fa-solid fa-microchip text-slate-400 text-xs"></i>
-                        <span class="text-xs font-bold text-white mono tracking-wider uppercase">Inspection Telemetry Station</span>
+                        <span class="text-xs font-bold text-[#18181B] heading-editorial tracking-tight uppercase">Quality Control Console</span>
                     </div>
                     <div class="flex items-center space-x-1.5">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span class="text-[10px] text-emerald-400 mono font-bold">ACTIVE RUN</span>
+                        <span class="w-2 h-2 rounded-full bg-[#166534]"></span>
+                        <span class="text-[10px] text-[#166534] mono font-bold">ACTIVE RUN</span>
                     </div>
                 </div>
 
                 <!-- 2. The 2x2 Metric Matrix (Drawn as top 4-cell window in sketch) -->
-                <div class="p-3.5 border-b border-[#232a3b] bg-[#0d1017]">
+                <div class="p-3.5 border-b border-[#E4E2DC] bg-[#FFFFFF]">
                     <div class="grid grid-cols-2 gap-2.5">
                         <!-- Top-Left: Total Inspected -->
-                        <div class="bg-[#131722] p-3 rounded-md border border-[#232a3b] flex flex-col justify-between">
-                            <span class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mono">Total Inspected</span>
+                        <div class="bg-[#FAF9F6] p-3 rounded-md border border-[#E4E2DC] flex flex-col justify-between">
+                            <span class="text-[10px] uppercase tracking-wider text-[#71717A] font-semibold mono">Total Inspected</span>
                             <div class="flex items-baseline space-x-1.5 mt-1">
-                                <span id="stat-total" class="text-2xl lg:text-3xl font-extrabold text-white mono">0</span>
-                                <span class="text-xs text-slate-500 font-mono">units</span>
+                                <span id="stat-total" class="text-2xl lg:text-3xl font-extrabold text-[#18181B] mono">0</span>
+                                <span class="text-xs text-[#71717A] font-mono">units</span>
                             </div>
                         </div>
 
                         <!-- Top-Right: Grade A Sound Shells -->
-                        <div class="bg-[#0f1d19] p-3 rounded-md border border-[#17523f] flex flex-col justify-between">
+                        <div class="bg-[#F0FDF4] p-3 rounded-md border border-[#BBF7D0] flex flex-col justify-between">
                             <div class="flex items-center justify-between">
-                                <span class="text-[10px] uppercase tracking-wider text-emerald-400 font-semibold mono">Grade A Sound</span>
-                                <i class="fa-solid fa-circle-check text-emerald-500 text-xs"></i>
+                                <span class="text-[10px] uppercase tracking-wider text-[#166534] font-semibold mono">Grade A Sound</span>
+                                <i class="fa-solid fa-circle-check text-[#166534] text-xs"></i>
                             </div>
                             <div class="flex items-baseline space-x-1.5 mt-1">
-                                <span id="stat-good-pct" class="text-2xl lg:text-3xl font-extrabold text-emerald-400 mono">100%</span>
-                                <span id="stat-good-count" class="text-xs text-emerald-600/90 mono font-semibold">0 sound</span>
+                                <span id="stat-good-pct" class="text-2xl lg:text-3xl font-extrabold text-[#166534] mono">100%</span>
+                                <span id="stat-good-count" class="text-xs text-[#15803D] mono font-semibold">0 sound</span>
                             </div>
                         </div>
 
                         <!-- Bottom-Left: Cracked Shell Defects -->
-                        <div class="bg-[#1f1013] p-3 rounded-md border border-[#6b1e27] flex flex-col justify-between">
+                        <div class="bg-[#FEF2F2] p-3 rounded-md border border-[#FECACA] flex flex-col justify-between">
                             <div class="flex items-center justify-between">
-                                <span class="text-[10px] uppercase tracking-wider text-red-400 font-semibold mono">Cracked Shells</span>
-                                <i class="fa-solid fa-bolt text-red-500 text-xs"></i>
+                                <span class="text-[10px] uppercase tracking-wider text-[#DC2626] font-semibold mono">Cracked Shells</span>
+                                <i class="fa-solid fa-bolt text-[#DC2626] text-xs"></i>
                             </div>
                             <div class="flex items-baseline space-x-1.5 mt-1">
-                                <span id="stat-cracked-count" class="text-2xl lg:text-3xl font-extrabold text-red-400 mono">0</span>
-                                <span id="stat-cracked-pct" class="text-xs text-red-500/90 mono font-semibold">0.0%</span>
+                                <span id="stat-cracked-count" class="text-2xl lg:text-3xl font-extrabold text-[#DC2626] mono">0</span>
+                                <span id="stat-cracked-pct" class="text-xs text-[#B91C1C] mono font-semibold">0.0%</span>
                             </div>
                         </div>
 
                         <!-- Bottom-Right: Dirty Shell Defects -->
-                        <div class="bg-[#211709] p-3 rounded-md border border-[#6e4912] flex flex-col justify-between">
+                        <div class="bg-[#FFFBEB] p-3 rounded-md border border-[#FDE68A] flex flex-col justify-between">
                             <div class="flex items-center justify-between">
-                                <span class="text-[10px] uppercase tracking-wider text-amber-400 font-semibold mono">Dirty Shells</span>
-                                <i class="fa-solid fa-droplet text-amber-500 text-xs"></i>
+                                <span class="text-[10px] uppercase tracking-wider text-[#D97706] font-semibold mono">Dirty Shells</span>
+                                <i class="fa-solid fa-droplet text-[#D97706] text-xs"></i>
                             </div>
                             <div class="flex items-baseline space-x-1.5 mt-1">
-                                <span id="stat-dirty-count" class="text-2xl lg:text-3xl font-extrabold text-amber-400 mono">0</span>
-                                <span id="stat-dirty-pct" class="text-xs text-amber-500/90 mono font-semibold">0.0%</span>
+                                <span id="stat-dirty-count" class="text-2xl lg:text-3xl font-extrabold text-[#D97706] mono">0</span>
+                                <span id="stat-dirty-pct" class="text-xs text-[#B45309] mono font-semibold">0.0%</span>
                             </div>
                         </div>
                     </div>
@@ -823,43 +879,43 @@ def industrial_hmi_dashboard():
                 </div>
 
                 <!-- 3. USDA Metric Size Grading (Drawn as 3 horizontal lines in sketch) -->
-                <div class="p-3.5 border-b border-[#232a3b] bg-[#10141e]">
+                <div class="p-3.5 border-b border-[#E4E2DC] bg-[#FAF9F6]">
                     <div class="flex items-center justify-between mb-2">
-                        <span class="text-[11px] font-bold text-slate-200 tracking-wider mono uppercase">USDA Size Grading</span>
-                        <span class="text-[10px] text-slate-500 mono">CALIBRATED BATCH WEIGHT</span>
+                        <span class="text-[11px] font-bold text-[#18181B] tracking-tight heading-editorial uppercase">USDA Size Grading</span>
+                        <span class="text-[10px] text-[#71717A] mono">CALIBRATED BATCH WEIGHT</span>
                     </div>
 
                     <div class="space-y-2">
                         <!-- Small -->
                         <div>
                             <div class="flex justify-between text-xs mb-1">
-                                <span class="text-slate-300 font-medium text-[11px]">Small (&lt; 53g)</span>
-                                <span id="size-cnt-s" class="mono font-semibold text-slate-300 text-[11px]">0 units (0%)</span>
+                                <span class="text-[#52525B] font-medium text-[11px]">Small (&lt; 53g)</span>
+                                <span id="size-cnt-s" class="mono font-semibold text-[#18181B] text-[11px]">0 units (0%)</span>
                             </div>
-                            <div class="w-full bg-[#0b0e14] h-2 rounded overflow-hidden border border-[#232a3b]">
-                                <div id="size-bar-s" class="bg-slate-400 h-full w-0 transition-all duration-300"></div>
+                            <div class="w-full bg-[#E4E2DC] h-2 rounded overflow-hidden">
+                                <div id="size-bar-s" class="bg-[#71717A] h-full w-0 transition-all duration-300"></div>
                             </div>
                         </div>
 
                         <!-- Medium -->
                         <div>
                             <div class="flex justify-between text-xs mb-1">
-                                <span class="text-emerald-400 font-medium text-[11px]">Medium (53g - 63g)</span>
-                                <span id="size-cnt-m" class="mono font-semibold text-emerald-300 text-[11px]">0 units (0%)</span>
+                                <span class="text-[#166534] font-medium text-[11px]">Medium (53g - 63g)</span>
+                                <span id="size-cnt-m" class="mono font-semibold text-[#166534] text-[11px]">0 units (0%)</span>
                             </div>
-                            <div class="w-full bg-[#0b0e14] h-2 rounded overflow-hidden border border-[#232a3b]">
-                                <div id="size-bar-m" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
+                            <div class="w-full bg-[#E4E2DC] h-2 rounded overflow-hidden">
+                                <div id="size-bar-m" class="bg-[#166534] h-full w-0 transition-all duration-300"></div>
                             </div>
                         </div>
 
                         <!-- Large -->
                         <div>
                             <div class="flex justify-between text-xs mb-1">
-                                <span class="text-amber-400 font-medium text-[11px]">Large (&gt; 63g)</span>
-                                <span id="size-cnt-l" class="mono font-semibold text-amber-300 text-[11px]">0 units (0%)</span>
+                                <span class="text-[#E05A2B] font-medium text-[11px]">Large (&gt; 63g)</span>
+                                <span id="size-cnt-l" class="mono font-semibold text-[#E05A2B] text-[11px]">0 units (0%)</span>
                             </div>
-                            <div class="w-full bg-[#0b0e14] h-2 rounded overflow-hidden border border-[#232a3b]">
-                                <div id="size-bar-l" class="bg-amber-500 h-full w-0 transition-all duration-300"></div>
+                            <div class="w-full bg-[#E4E2DC] h-2 rounded overflow-hidden">
+                                <div id="size-bar-l" class="bg-[#E05A2B] h-full w-0 transition-all duration-300"></div>
                             </div>
                         </div>
                     </div>
@@ -867,26 +923,26 @@ def industrial_hmi_dashboard():
                 </div>
 
                 <!-- 4. Rejection Actuator Log & Sensitivity Controls -->
-                <div class="p-3.5 flex-1 flex flex-col min-h-0 bg-[#0d1017]">
+                <div class="p-3.5 flex-1 flex flex-col min-h-0 bg-[#FFFFFF]">
                     <div class="flex items-center justify-between mb-1.5">
-                        <span class="text-[11px] font-bold text-slate-200 tracking-wider mono uppercase">Rejection Actuator Log</span>
-                        <span class="text-[10px] text-slate-500 mono">&lt;12ms PNEUMATIC</span>
+                        <span class="text-[11px] font-bold text-[#18181B] tracking-tight heading-editorial uppercase">Reject Actuator Log</span>
+                        <span class="text-[10px] text-[#71717A] mono">&lt;12ms PNEUMATIC</span>
                     </div>
 
                     <div class="flex-1 overflow-y-auto max-h-[135px] pr-1">
                         <table class="w-full text-left text-xs mono">
                             <thead>
-                                <tr class="text-[10px] text-slate-500 border-b border-[#232a3b]">
+                                <tr class="text-[10px] text-[#71717A] border-b border-[#E4E2DC]">
                                     <th class="pb-1">TIME</th>
                                     <th class="pb-1">ID</th>
                                     <th class="pb-1">DEFECT</th>
                                     <th class="pb-1 text-right">ACTION</th>
                                 </tr>
                             </thead>
-                            <tbody id="reject-log-body" class="divide-y divide-[#232a3b]/50">
+                            <tbody id="reject-log-body" class="divide-y divide-[#E4E2DC]/70">
                                 <tr>
-                                    <td colspan="4" class="py-2.5 text-center text-slate-500 text-xs">
-                                        <i class="fa-solid fa-circle-check text-emerald-500 mr-1.5"></i>All units conform to Grade A
+                                    <td colspan="4" class="py-2.5 text-center text-[#71717A] text-xs">
+                                        <i class="fa-solid fa-circle-check text-[#166534] mr-1.5"></i>All units conform to Grade A
                                     </td>
                                 </tr>
                             </tbody>
@@ -894,18 +950,18 @@ def industrial_hmi_dashboard():
                     </div>
 
                     <!-- System Tuning Sensitivity Sub-bar -->
-                    <div class="pt-2.5 mt-2.5 border-t border-[#232a3b] flex items-center justify-between text-xs">
+                    <div class="pt-2.5 mt-2.5 border-t border-[#E4E2DC] flex items-center justify-between text-xs">
                         <div class="flex items-center space-x-2">
-                            <span class="text-slate-400 text-[11px] font-medium">Confidence:</span>
-                            <input type="range" id="conf-slider" min="0.15" max="0.75" step="0.05" value="0.42" class="w-20 accent-slate-300 cursor-pointer h-1.5 bg-slate-800 rounded" onchange="updateConfidence(this.value)">
-                            <span id="conf-val" class="text-white font-bold mono text-xs">0.42</span>
+                            <span class="text-[#71717A] text-[11px] font-medium">Confidence:</span>
+                            <input type="range" id="conf-slider" min="0.15" max="0.75" step="0.05" value="0.42" class="w-20 accent-[#18181B] cursor-pointer h-1.5 bg-[#E4E2DC] rounded" onchange="updateConfidence(this.value)">
+                            <span id="conf-val" class="text-[#18181B] font-bold mono text-xs">0.42</span>
                         </div>
 
                         <div class="flex items-center space-x-1.5">
-                            <button onclick="toggleLineMode()" id="btn-trigger-mode" class="px-2 py-0.5 rounded bg-[#18202e] hover:bg-[#202b3d] text-slate-300 text-[10px] mono border border-[#2b374e] transition">
+                            <button onclick="toggleLineMode()" id="btn-trigger-mode" class="px-2 py-0.5 rounded bg-[#FAF9F6] hover:bg-[#F4F2EB] text-[#52525B] text-[10px] mono border border-[#D4D2CB] transition">
                                 Universal
                             </button>
-                            <button onclick="toggleAudio()" id="btn-sound" class="p-1 px-1.5 rounded bg-[#18202e] hover:bg-[#202b3d] text-emerald-400 border border-[#2b374e] transition" title="Defect buzzer">
+                            <button onclick="toggleAudio()" id="btn-sound" class="p-1 px-1.5 rounded bg-[#FAF9F6] hover:bg-[#F4F2EB] text-[#166534] border border-[#D4D2CB] transition" title="Defect buzzer">
                                 <i class="fa-solid fa-volume-high text-xs"></i>
                             </button>
                         </div>
@@ -913,16 +969,16 @@ def industrial_hmi_dashboard():
                 </div>
 
                 <!-- 5. Bottom Action Footer: 3 Industrial Push Buttons (Drawn at bottom of panel in sketch) -->
-                <div class="bg-[#121622] border-t border-[#232a3b] p-3 grid grid-cols-3 gap-2">
-                    <button onclick="openReportModal()" class="btn-industrial justify-center py-2 text-slate-200 hover:text-white bg-[#1a2130] hover:bg-[#222c40] border-[#2d3a52]">
-                        <i class="fa-solid fa-file-invoice text-emerald-400 text-xs"></i>
+                <div class="bg-[#FAF9F6] border-t border-[#E4E2DC] p-3 grid grid-cols-3 gap-2">
+                    <button onclick="openReportModal()" class="btn-editorial-primary justify-center py-2">
+                        <i class="fa-solid fa-file-invoice text-xs"></i>
                         <span>Audit Report</span>
                     </button>
-                    <button onclick="exportReport()" class="btn-industrial justify-center py-2 text-amber-300 hover:text-amber-200 bg-[#241d13] hover:bg-[#302619] border-[#5e4318]">
-                        <i class="fa-solid fa-file-csv text-amber-400 text-xs"></i>
+                    <button onclick="exportReport()" class="btn-editorial-accent justify-center py-2">
+                        <i class="fa-solid fa-file-csv text-xs"></i>
                         <span>Export CSV</span>
                     </button>
-                    <button onclick="resetBatch()" class="btn-industrial justify-center py-2 text-slate-400 hover:text-rose-400 bg-[#1c181f] hover:bg-[#291e23] border-[#3d2731]">
+                    <button onclick="resetBatch()" class="btn-editorial justify-center py-2 hover:border-[#DC2626] hover:text-[#DC2626]">
                         <i class="fa-solid fa-rotate-left text-xs"></i>
                         <span>Zero Batch</span>
                     </button>
@@ -935,95 +991,95 @@ def industrial_hmi_dashboard():
     </main>
 
     <!-- Audit Report Preview Modal -->
-    <div id="report-modal" class="hidden fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-        <div class="industrial-card max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border-slate-700">
+    <div id="report-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bento-card max-w-4xl w-full max-h-[92vh] flex flex-col shadow-xl bg-white border-[#D4D2CB]">
             <!-- Modal Header -->
-            <div class="bg-[#141924] border-b border-[#232a3b] px-4 py-3 flex items-center justify-between">
+            <div class="bg-[#FAF9F6] border-b border-[#E4E2DC] px-4 py-3 flex items-center justify-between">
                 <div class="flex items-center space-x-2.5">
-                    <i class="fa-solid fa-file-invoice text-emerald-400"></i>
-                    <h3 class="text-sm font-bold text-white mono uppercase tracking-wider">
-                        EGGVISION // BATCH QUALITY ASSURANCE AUDIT REPORT
+                    <i class="fa-solid fa-file-invoice text-[#166534]"></i>
+                    <h3 class="text-sm font-bold text-[#18181B] heading-editorial uppercase tracking-tight">
+                        Quality Assurance Batch Audit Report
                     </h3>
                 </div>
-                <button onclick="closeReportModal()" class="text-slate-400 hover:text-white px-2 py-1 text-sm">
+                <button onclick="closeReportModal()" class="text-[#71717A] hover:text-[#18181B] px-2 py-1 text-sm">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
 
             <!-- Modal Body (Scrollable) -->
-            <div class="p-6 overflow-y-auto space-y-6 text-xs mono">
+            <div class="p-6 overflow-y-auto space-y-6 text-xs mono bg-white">
                 
                 <!-- Report Metadata Grid -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-[#0d1017] p-3 rounded border border-slate-800">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-[#FAF9F6] p-3 rounded border border-[#E4E2DC]">
                     <div>
-                        <span class="text-slate-500 text-[10px] block">BATCH REF:</span>
-                        <span id="modal-batch-id" class="text-white font-bold">BATCH-000000</span>
+                        <span class="text-[#71717A] text-[10px] block">BATCH REF:</span>
+                        <span id="modal-batch-id" class="text-[#18181B] font-bold">BATCH-000000</span>
                     </div>
                     <div>
-                        <span class="text-slate-500 text-[10px] block">TIMESTAMP:</span>
-                        <span id="modal-timestamp" class="text-slate-200 font-medium">--:--:--</span>
+                        <span class="text-[#71717A] text-[10px] block">TIMESTAMP:</span>
+                        <span id="modal-timestamp" class="text-[#18181B] font-medium">--:--:--</span>
                     </div>
                     <div>
-                        <span class="text-slate-500 text-[10px] block">SOURCE:</span>
-                        <span id="modal-source" class="text-emerald-400 font-medium">UPLOADED</span>
+                        <span class="text-[#71717A] text-[10px] block">SOURCE:</span>
+                        <span id="modal-source" class="text-[#166534] font-medium">UPLOADED</span>
                     </div>
                     <div>
-                        <span class="text-slate-500 text-[10px] block">COMPLIANCE:</span>
-                        <span class="text-slate-200 font-medium">USDA / ISO 22000</span>
+                        <span class="text-[#71717A] text-[10px] block">COMPLIANCE:</span>
+                        <span class="text-[#18181B] font-medium">USDA / ISO 22000</span>
                     </div>
                 </div>
 
                 <!-- Executive KPI Strip -->
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div class="bg-[#10141d] p-3 rounded border border-slate-800">
-                        <span class="text-[10px] text-slate-500 block uppercase">Total Inspected</span>
-                        <span id="modal-kpi-total" class="text-xl font-bold text-white">0</span>
+                    <div class="bg-[#FAF9F6] p-3 rounded border border-[#E4E2DC]">
+                        <span class="text-[10px] text-[#71717A] block uppercase">Total Inspected</span>
+                        <span id="modal-kpi-total" class="text-xl font-bold text-[#18181B]">0</span>
                     </div>
-                    <div class="bg-[#10141d] p-3 rounded border border-emerald-950">
-                        <span class="text-[10px] text-emerald-400 block uppercase">Grade A Yield</span>
-                        <span id="modal-kpi-yield" class="text-xl font-bold text-emerald-400">100.0%</span>
+                    <div class="bg-[#F0FDF4] p-3 rounded border border-[#BBF7D0]">
+                        <span class="text-[10px] text-[#166534] block uppercase">Grade A Yield</span>
+                        <span id="modal-kpi-yield" class="text-xl font-bold text-[#166534]">100.0%</span>
                     </div>
-                    <div class="bg-[#10141d] p-3 rounded border border-red-950">
-                        <span class="text-[10px] text-red-400 block uppercase">Cracked Defects</span>
-                        <span id="modal-kpi-cracked" class="text-xl font-bold text-red-400">0</span>
+                    <div class="bg-[#FEF2F2] p-3 rounded border border-[#FECACA]">
+                        <span class="text-[10px] text-[#DC2626] block uppercase">Cracked Defects</span>
+                        <span id="modal-kpi-cracked" class="text-xl font-bold text-[#DC2626]">0</span>
                     </div>
-                    <div class="bg-[#10141d] p-3 rounded border border-amber-950">
-                        <span class="text-[10px] text-amber-400 block uppercase">Dirty Shells</span>
-                        <span id="modal-kpi-dirty" class="text-xl font-bold text-amber-400">0</span>
+                    <div class="bg-[#FFFBEB] p-3 rounded border border-[#FDE68A]">
+                        <span class="text-[10px] text-[#D97706] block uppercase">Dirty Shells</span>
+                        <span id="modal-kpi-dirty" class="text-xl font-bold text-[#D97706]">0</span>
                     </div>
                 </div>
 
                 <!-- Size Grading Breakdown Table -->
-                <div class="industrial-card p-3 border-slate-800">
-                    <div class="text-[11px] font-bold text-slate-300 uppercase mb-2 flex items-center justify-between">
+                <div class="bento-card p-3 border-[#E4E2DC]">
+                    <div class="text-[11px] font-bold text-[#18181B] uppercase mb-2 flex items-center justify-between heading-editorial">
                         <span>Metric Size & Weight Classification</span>
-                        <span class="text-[10px] text-slate-500">USDA STANDARD WEIGHT BANDS</span>
+                        <span class="text-[10px] text-[#71717A] mono">USDA STANDARD WEIGHT BANDS</span>
                     </div>
                     <table class="w-full text-left text-xs">
                         <thead>
-                            <tr class="text-[10px] text-slate-500 border-b border-slate-800">
+                            <tr class="text-[10px] text-[#71717A] border-b border-[#E4E2DC]">
                                 <th class="pb-1.5">CATEGORY</th>
                                 <th class="pb-1.5">WEIGHT SPEC</th>
                                 <th class="pb-1.5">COUNT</th>
                                 <th class="pb-1.5 text-right">DISTRIBUTION</th>
                             </tr>
                         </thead>
-                        <tbody id="modal-size-table-body" class="divide-y divide-slate-800/40 text-slate-300">
+                        <tbody id="modal-size-table-body" class="divide-y divide-[#E4E2DC]/50 text-[#18181B]">
                             <!-- Populated dynamically -->
                         </tbody>
                     </table>
                 </div>
 
                 <!-- Itemized Unit Traceability Registry -->
-                <div class="industrial-card p-3 border-slate-800">
-                    <div class="text-[11px] font-bold text-slate-300 uppercase mb-2 flex items-center justify-between">
+                <div class="bento-card p-3 border-[#E4E2DC]">
+                    <div class="text-[11px] font-bold text-[#18181B] uppercase mb-2 flex items-center justify-between heading-editorial">
                         <span>Itemized Individual Egg Inspection Registry</span>
-                        <span id="modal-itemized-count" class="text-[10px] text-slate-400">0 UNITS LOGGED</span>
+                        <span id="modal-itemized-count" class="text-[10px] text-[#71717A] mono">0 UNITS LOGGED</span>
                     </div>
                     <div class="max-h-56 overflow-y-auto">
                         <table class="w-full text-left text-xs">
-                            <thead class="sticky top-0 bg-[#141924]">
-                                <tr class="text-[10px] text-slate-500 border-b border-slate-800">
+                            <thead class="sticky top-0 bg-[#FAF9F6]">
+                                <tr class="text-[10px] text-[#71717A] border-b border-[#E4E2DC]">
                                     <th class="py-1">ID</th>
                                     <th class="py-1">FIRST SEEN</th>
                                     <th class="py-1">QUALITY</th>
@@ -1033,9 +1089,9 @@ def industrial_hmi_dashboard():
                                     <th class="py-1 text-right">STATUS</th>
                                 </tr>
                             </thead>
-                            <tbody id="modal-itemized-tbody" class="divide-y divide-slate-800/40 text-slate-300">
+                            <tbody id="modal-itemized-tbody" class="divide-y divide-[#E4E2DC]/50 text-[#18181B]">
                                 <tr>
-                                    <td colspan="7" class="py-3 text-center text-slate-600">No egg records registered.</td>
+                                    <td colspan="7" class="py-3 text-center text-[#71717A]">No egg records registered.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1045,18 +1101,18 @@ def industrial_hmi_dashboard():
             </div>
 
             <!-- Modal Footer Controls -->
-            <div class="bg-[#10141d] border-t border-[#232a3b] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-                <div class="text-[10px] text-slate-500 mono">
+            <div class="bg-[#FAF9F6] border-t border-[#E4E2DC] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div class="text-[10px] text-[#71717A] mono">
                     FORMAT: STANDARDIZED CSV & AUDIT MANIFEST
                 </div>
                 <div class="flex items-center space-x-2">
-                    <button onclick="window.print()" class="btn-industrial text-slate-300 hover:text-white">
+                    <button onclick="window.print()" class="btn-editorial">
                         <i class="fa-solid fa-print mr-1.5"></i>Print / PDF
                     </button>
-                    <button onclick="exportReport()" class="btn-industrial text-amber-300 border-amber-900 bg-amber-950/40 hover:border-amber-400">
+                    <button onclick="exportReport()" class="btn-editorial-accent">
                         <i class="fa-solid fa-download mr-1.5"></i>Download CSV
                     </button>
-                    <button onclick="closeReportModal()" class="btn-industrial">Close</button>
+                    <button onclick="closeReportModal()" class="btn-editorial">Close</button>
                 </div>
             </div>
         </div>
@@ -1066,28 +1122,28 @@ def industrial_hmi_dashboard():
     <input type="file" id="video-file-input" accept="video/mp4,video/x-m4v,video/*" class="hidden" onchange="handleVideoUpload(event)">
 
     <!-- Upload Modal -->
-    <div id="upload-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
-        <div class="industrial-card p-6 max-w-md w-full mx-4 shadow-2xl border-slate-700">
-            <h3 class="text-sm font-bold text-white mono mb-2 uppercase flex items-center gap-2">
-                <i class="fa-solid fa-cloud-arrow-up text-slate-300"></i> Upload Inspection Video
+    <div id="upload-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div class="bento-card p-6 max-w-md w-full mx-4 shadow-xl bg-white border-[#D4D2CB]">
+            <h3 class="text-sm font-bold text-[#18181B] heading-editorial mb-2 uppercase flex items-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-up text-[#E05A2B]"></i> Upload Inspection Video
             </h3>
-            <p class="text-xs text-slate-400 mb-4 leading-relaxed">
-                Select any MP4/AVI egg video from your PC (conveyor, egg tray, or table). EggVision runs instant ByteTrack detection, size grading, and crack analysis on every frame.
+            <p class="text-xs text-[#71717A] mb-4 leading-relaxed">
+                Select an MP4/AVI egg video from your PC. EggVision performs real-time neural crack detection, weight classification, and defect tracking across every frame.
             </p>
-            <div id="upload-dropzone" onclick="document.getElementById('video-file-input').click()" class="border-2 border-dashed border-slate-700 hover:border-slate-400 p-8 rounded-lg text-center cursor-pointer transition">
-                <i class="fa-solid fa-file-video text-3xl text-slate-500 mb-2"></i>
-                <span class="text-xs block text-slate-300 font-semibold">Click to select video file (.mp4)</span>
-                <span class="text-[10px] text-slate-500 block mt-1">Conveyor, bowl, or tray test footage</span>
+            <div id="upload-dropzone" onclick="document.getElementById('video-file-input').click()" class="border-2 border-dashed border-[#D4D2CB] hover:border-[#18181B] p-8 rounded-lg text-center cursor-pointer transition bg-[#FAF9F6]">
+                <i class="fa-solid fa-file-video text-3xl text-[#71717A] mb-2"></i>
+                <span class="text-xs block text-[#18181B] font-semibold">Select video file (.mp4)</span>
+                <span class="text-[10px] text-[#71717A] block mt-1">Conveyor, carton tray, or candling footage</span>
             </div>
             <div class="flex justify-end mt-4">
-                <button onclick="closeUploadModal()" class="btn-industrial">Cancel</button>
+                <button onclick="closeUploadModal()" class="btn-editorial">Cancel</button>
             </div>
         </div>
     </div>
 
-    <!-- Industrial Toast Notification -->
-    <div id="toast" class="hidden fixed bottom-5 right-5 bg-[#141924] border border-slate-700 text-slate-200 px-4 py-2.5 rounded shadow-2xl text-xs mono z-50 flex items-center space-x-2.5">
-        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400"></i>
+    <!-- Editorial Toast Notification -->
+    <div id="toast" class="hidden fixed bottom-5 right-5 bg-[#18181B] border border-[#27272A] text-white px-4 py-2.5 rounded shadow-lg text-xs mono z-50 flex items-center space-x-2.5">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-[#4ADE80]"></i>
         <span id="toast-msg">Operation completed</span>
     </div>
 
@@ -1102,8 +1158,8 @@ def industrial_hmi_dashboard():
             const toast = document.getElementById('toast');
             document.getElementById('toast-msg').innerText = msg;
             document.getElementById('toast-icon').className = isSuccess 
-                ? 'fa-solid fa-circle-check text-emerald-400' 
-                : 'fa-solid fa-triangle-exclamation text-amber-400';
+                ? 'fa-solid fa-circle-check text-[#4ADE80]' 
+                : 'fa-solid fa-triangle-exclamation text-[#FBBF24]';
             toast.classList.remove('hidden');
             setTimeout(() => toast.classList.add('hidden'), 3500);
         }
@@ -1130,8 +1186,8 @@ def industrial_hmi_dashboard():
             audioEnabled = !audioEnabled;
             const btn = document.getElementById('btn-sound');
             btn.innerHTML = audioEnabled 
-                ? '<i class="fa-solid fa-volume-high text-emerald-400"></i>' 
-                : '<i class="fa-solid fa-volume-xmark text-slate-500"></i>';
+                ? '<i class="fa-solid fa-volume-high text-[#166534]"></i>' 
+                : '<i class="fa-solid fa-volume-xmark text-[#71717A]"></i>';
             showToast(`Audio alerts ${audioEnabled ? 'enabled' : 'muted'}`);
         }
 
@@ -1141,11 +1197,11 @@ def industrial_hmi_dashboard():
             const btn = document.getElementById('btn-trigger-mode');
             if (currentLineMode) {
                 btn.innerText = "Line (Y=320)";
-                btn.className = "px-2 py-1 rounded bg-[#2c2010] border border-amber-700 text-amber-300 font-semibold text-[11px] mono";
-                showToast("Mode: Line crossing datum trigger active");
+                btn.className = "px-2 py-0.5 rounded bg-[#FFFBEB] border border-[#D97706] text-[#B45309] font-semibold text-[10px] mono";
+                showToast("Mode: Line crossing trigger active");
             } else {
                 btn.innerText = "Universal";
-                btn.className = "px-2 py-1 rounded bg-[#1a202c] border border-[#2d3748] text-slate-300 text-[11px] mono";
+                btn.className = "px-2 py-0.5 rounded bg-[#FAF9F6] border border-[#D4D2CB] text-[#52525B] text-[10px] mono";
                 showToast("Mode: Universal instant in-frame active");
             }
         }
@@ -1156,7 +1212,7 @@ def industrial_hmi_dashboard():
             showToast(`Detection confidence set to ${parseFloat(val).toFixed(2)}`);
         }
 
-        // --- Video Transport Controls (Play / Pause / Stop / Full Screen) ---
+        // --- Video Transport Controls ---
         function playbackPlay() {
             fetch('/api/playback/play', { method: 'POST' });
             currentPlaybackState = "PLAYING";
@@ -1208,33 +1264,21 @@ def industrial_hmi_dashboard():
         }
 
         function updatePlaybackControlsUI() {
-            const btnPlay = document.getElementById('btn-transport-play');
-            const btnPause = document.getElementById('btn-transport-pause');
-            const btnStop = document.getElementById('btn-transport-stop');
             const pill = document.getElementById('playback-status-pill');
 
             if (currentPlaybackState === "PLAYING") {
-                if (btnPlay) btnPlay.className = "btn-industrial text-emerald-300 border-emerald-700 bg-[#0d281e] font-bold";
-                if (btnPause) btnPause.className = "btn-industrial text-amber-400 hover:text-amber-300";
-                if (btnStop) btnStop.className = "btn-industrial text-rose-400 hover:text-rose-300";
-                pill.className = "px-2.5 py-0.5 rounded bg-emerald-950/70 border border-emerald-700 text-emerald-400 text-xs font-bold flex items-center gap-1.5";
-                pill.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span><span>PLAYING</span>`;
+                pill.className = "px-2.5 py-0.5 rounded bg-[#F0FDF4] border border-[#BBF7D0] text-[#166534] text-xs font-bold flex items-center gap-1.5 mono";
+                pill.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-[#166534]"></span><span>PLAYING</span>`;
             } else if (currentPlaybackState === "PAUSED") {
-                if (btnPlay) btnPlay.className = "btn-industrial text-emerald-400 hover:text-emerald-300";
-                if (btnPause) btnPause.className = "btn-industrial text-amber-300 border-amber-700 bg-[#2b200d] font-bold";
-                if (btnStop) btnStop.className = "btn-industrial text-rose-400 hover:text-rose-300";
-                pill.className = "px-2.5 py-0.5 rounded bg-amber-950/70 border border-amber-700 text-amber-300 text-xs font-bold flex items-center gap-1.5";
-                pill.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>PAUSED</span>`;
+                pill.className = "px-2.5 py-0.5 rounded bg-[#FFFBEB] border border-[#FDE68A] text-[#B45309] text-xs font-bold flex items-center gap-1.5 mono";
+                pill.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-[#D97706]"></span><span>PAUSED</span>`;
             } else if (currentPlaybackState === "COMPLETED") {
-                if (btnPlay) btnPlay.className = "btn-industrial text-emerald-400 hover:text-emerald-300";
-                if (btnPause) btnPause.className = "btn-industrial text-amber-400 hover:text-amber-300";
-                if (btnStop) btnStop.className = "btn-industrial text-rose-400 hover:text-rose-300";
-                pill.className = "px-2.5 py-0.5 rounded bg-slate-900 border border-slate-600 text-slate-200 text-xs font-bold flex items-center gap-1.5";
-                pill.innerHTML = `<i class="fa-solid fa-flag-checkered text-emerald-400"></i><span>COMPLETED</span>`;
+                pill.className = "px-2.5 py-0.5 rounded bg-[#FAF9F6] border border-[#D4D2CB] text-[#18181B] text-xs font-bold flex items-center gap-1.5 mono";
+                pill.innerHTML = `<i class="fa-solid fa-flag-checkered text-[#166534]"></i><span>COMPLETED</span>`;
             }
         }
 
-        // Initialize Chart.js dummy instance so listeners execute cleanly
+        // Dummy Chart.js instance for internal listener safe calls
         const ctx = document.getElementById('sizeHistogram').getContext('2d');
         const sizeChart = new Chart(ctx, {
             type: 'bar',
@@ -1323,8 +1367,8 @@ def industrial_hmi_dashboard():
                 }
                 const alertBox = document.getElementById('rejection-alert-box');
                 document.getElementById('rejection-alert-text').innerText = (data.active_cracked > 0)
-                    ? `CRACKED SHELL DETECTED (${data.active_cracked}) // SOLENOID ARMED`
-                    : `DIRTY DEFECT DETECTED // DIVERT PULSE FIRED`;
+                    ? `CRACKED SHELL IDENTIFIED (${data.active_cracked}) // SOLENOID ARMED`
+                    : `DIRTY DEFECT IDENTIFIED // DIVERT PULSE FIRED`;
                 alertBox.classList.remove('hidden');
                 setTimeout(() => alertBox.classList.add('hidden'), 1200);
             }
@@ -1333,14 +1377,14 @@ def industrial_hmi_dashboard():
             const tbody = document.getElementById('reject-log-body');
             if (data.reject_logs && data.reject_logs.length > 0) {
                 tbody.innerHTML = data.reject_logs.slice(0, 6).map(log => `
-                    <tr class="hover:bg-red-950/20 text-slate-300">
-                        <td class="py-1 text-slate-400">${log.timestamp}</td>
-                        <td class="py-1 text-white font-bold">${log.id}</td>
-                        <td class="py-1 ${log.defect.includes('CRACKED') ? 'text-red-400' : 'text-amber-400'} font-semibold">
+                    <tr class="hover:bg-[#FAF9F6] text-[#18181B]">
+                        <td class="py-1 text-[#71717A]">${log.timestamp}</td>
+                        <td class="py-1 text-[#18181B] font-bold">${log.id}</td>
+                        <td class="py-1 ${log.defect.includes('CRACKED') ? 'text-[#DC2626]' : 'text-[#D97706]'} font-semibold">
                             ${log.defect}
                         </td>
                         <td class="py-1 text-right">
-                            <span class="px-2 py-0.5 rounded ${log.defect.includes('CRACKED') ? 'bg-red-950 text-red-300 border border-red-800' : 'bg-amber-950 text-amber-300 border border-amber-800'} text-[10px]">
+                            <span class="px-2 py-0.5 rounded ${log.defect.includes('CRACKED') ? 'bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]' : 'bg-[#FFFBEB] text-[#D97706] border border-[#FDE68A]'} text-[10px]">
                                 ${log.action}
                             </span>
                         </td>
@@ -1373,7 +1417,7 @@ def industrial_hmi_dashboard():
             formData.append('file', file);
 
             const dropzone = document.getElementById('upload-dropzone');
-            dropzone.innerHTML = `<span class="text-xs text-slate-300 font-mono animate-pulse"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Uploading ${file.name}...</span>`;
+            dropzone.innerHTML = `<span class="text-xs text-[#18181B] font-mono animate-pulse"><i class="fa-solid fa-spinner fa-spin mr-2 text-[#E05A2B]"></i>Loading ${file.name}...</span>`;
 
             fetch('/api/upload-video', {
                 method: 'POST',
@@ -1385,9 +1429,9 @@ def industrial_hmi_dashboard():
                 setSource('uploaded');
                 showToast(`Loaded ${file.name} successfully!`);
                 dropzone.innerHTML = `
-                    <i class="fa-solid fa-file-video text-3xl text-slate-500 mb-2"></i>
-                    <span class="text-xs block text-slate-300 font-semibold">Click to select video file (.mp4)</span>
-                    <span class="text-[10px] text-slate-500 block mt-1">Conveyor, bowl, or tray test footage</span>
+                    <i class="fa-solid fa-file-video text-3xl text-[#71717A] mb-2"></i>
+                    <span class="text-xs block text-[#18181B] font-semibold">Select video file (.mp4)</span>
+                    <span class="text-[10px] text-[#71717A] block mt-1">Conveyor, carton tray, or candling footage</span>
                 `;
             });
         }
@@ -1423,22 +1467,22 @@ def industrial_hmi_dashboard():
 
                     document.getElementById('modal-size-table-body').innerHTML = `
                         <tr>
-                            <td class="py-1.5 font-bold text-slate-300">Small (S)</td>
-                            <td class="py-1.5 text-slate-400">&lt; 53 grams</td>
-                            <td class="py-1.5 font-bold text-white">${s} units</td>
-                            <td class="py-1.5 text-right text-slate-300">${((s/sTot)*100).toFixed(1)}%</td>
+                            <td class="py-1.5 font-bold text-[#18181B]">Small (S)</td>
+                            <td class="py-1.5 text-[#71717A]">&lt; 53 grams</td>
+                            <td class="py-1.5 font-bold text-[#18181B]">${s} units</td>
+                            <td class="py-1.5 text-right text-[#71717A]">${((s/sTot)*100).toFixed(1)}%</td>
                         </tr>
                         <tr>
-                            <td class="py-1.5 font-bold text-emerald-400">Medium (M)</td>
-                            <td class="py-1.5 text-slate-400">53 - 63 grams</td>
-                            <td class="py-1.5 font-bold text-white">${m} units</td>
-                            <td class="py-1.5 text-right text-slate-300">${((m/sTot)*100).toFixed(1)}%</td>
+                            <td class="py-1.5 font-bold text-[#166534]">Medium (M)</td>
+                            <td class="py-1.5 text-[#71717A]">53 - 63 grams</td>
+                            <td class="py-1.5 font-bold text-[#18181B]">${m} units</td>
+                            <td class="py-1.5 text-right text-[#71717A]">${((m/sTot)*100).toFixed(1)}%</td>
                         </tr>
                         <tr>
-                            <td class="py-1.5 font-bold text-amber-400">Large (L)</td>
-                            <td class="py-1.5 text-slate-400">&gt; 63 grams</td>
-                            <td class="py-1.5 font-bold text-white">${l} units</td>
-                            <td class="py-1.5 text-right text-slate-300">${((l/sTot)*100).toFixed(1)}%</td>
+                            <td class="py-1.5 font-bold text-[#E05A2B]">Large (L)</td>
+                            <td class="py-1.5 text-[#71717A]">&gt; 63 grams</td>
+                            <td class="py-1.5 font-bold text-[#18181B]">${l} units</td>
+                            <td class="py-1.5 text-right text-[#71717A]">${((l/sTot)*100).toFixed(1)}%</td>
                         </tr>
                     `;
 
@@ -1447,24 +1491,24 @@ def industrial_hmi_dashboard():
                     const itemizedBody = document.getElementById('modal-itemized-tbody');
                     if (data.itemized && data.itemized.length > 0) {
                         itemizedBody.innerHTML = data.itemized.map(egg => `
-                            <tr class="hover:bg-[#1a202c]">
-                                <td class="py-1 font-bold text-white">${egg.id}</td>
-                                <td class="py-1 text-slate-400">${egg.first_seen}</td>
-                                <td class="py-1 ${egg.worst_class === 0 ? 'text-red-400' : (egg.worst_class === 1 ? 'text-amber-400' : 'text-emerald-400')} font-semibold">
+                            <tr class="hover:bg-[#FAF9F6]">
+                                <td class="py-1 font-bold text-[#18181B]">${egg.id}</td>
+                                <td class="py-1 text-[#71717A]">${egg.first_seen}</td>
+                                <td class="py-1 ${egg.worst_class === 0 ? 'text-[#DC2626]' : (egg.worst_class === 1 ? 'text-[#D97706]' : 'text-[#166534]')} font-semibold">
                                     ${egg.class_name}
                                 </td>
-                                <td class="py-1 text-slate-300 font-bold">[${egg.grade}]</td>
-                                <td class="py-1 text-slate-400">${egg.width_px}x${egg.height_px}px</td>
-                                <td class="py-1 text-slate-200 font-medium">${Math.round(egg.confidence * 100)}%</td>
+                                <td class="py-1 text-[#52525B] font-bold">[${egg.grade}]</td>
+                                <td class="py-1 text-[#71717A]">${egg.width_px}x${egg.height_px}px</td>
+                                <td class="py-1 text-[#18181B] font-medium">${Math.round(egg.confidence * 100)}%</td>
                                 <td class="py-1 text-right">
-                                    <span class="px-2 py-0.5 rounded text-[10px] ${egg.status === 'PASS' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-red-950 text-red-300 border border-red-800'}">
+                                    <span class="px-2 py-0.5 rounded text-[10px] ${egg.status === 'PASS' ? 'bg-[#F0FDF4] text-[#166534] border border-[#BBF7D0]' : 'bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]'}">
                                         ${egg.status}
                                     </span>
                                 </td>
                             </tr>
                         `).join('');
                     } else {
-                        itemizedBody.innerHTML = `<tr><td colspan="7" class="py-3 text-center text-slate-600">No egg units registered yet. Upload video or start stream.</td></tr>`;
+                        itemizedBody.innerHTML = `<tr><td colspan="7" class="py-3 text-center text-[#71717A]">No egg units registered yet. Upload video or start stream.</td></tr>`;
                     }
 
                     document.getElementById('report-modal').classList.remove('hidden');
