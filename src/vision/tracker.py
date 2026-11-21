@@ -82,27 +82,10 @@ class EggTracker:
             center_x = (bbox[0] + bbox[2]) / 2.0
             center_y = (bbox[1] + bbox[3]) / 2.0
 
-            # 1. Resolve Tracker Alias (Check if this track was previously linked to an existing egg)
-            master_tid = self.track_aliases.get(raw_tid, raw_tid)
+            # 1. ByteTrack Master Track Identification
+            master_tid = raw_tid
 
-            # 2. Adaptive Spatial Deduplication (re-associate occluded / nudged eggs)
-            if master_tid not in self.egg_records:
-                matched_existing = None
-                min_dist = float("inf")
-                max_allow_dist = max(85.0, bw * 0.70)
-                for exist_tid, rec in self.egg_records.items():
-                    dx = center_x - rec.get("center_x", center_x)
-                    dy = center_y - rec.get("center_y", center_y)
-                    dist = math.hypot(dx, dy)
-                    if dist < max_allow_dist and dist < min_dist:
-                        min_dist = dist
-                        matched_existing = exist_tid
-
-                if matched_existing is not None:
-                    master_tid = matched_existing
-                    self.track_aliases[raw_tid] = master_tid
-
-            # 3. Create or Update Master Record
+            # 2. Create or Update Master Record
             initial_worst = 2 if (cls_id == 2 or conf < 0.75) else cls_id
             init_class_name = "SOUND (GRADE A)" if initial_worst == 2 else ("CRACKED SHELL" if initial_worst == 0 else "DIRTY SHELL")
 
