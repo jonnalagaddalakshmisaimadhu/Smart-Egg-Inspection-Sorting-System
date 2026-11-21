@@ -12,12 +12,12 @@ import time
 import math
 
 class EggTracker:
-    def __init__(self, line_y: int = 320, enable_line_crossing: bool = False, min_confirm_frames: int = 4):
+    def __init__(self, line_y: int = 320, enable_line_crossing: bool = False, min_confirm_frames: int = 3):
         """
         Args:
-            line_y: Optional visual inspection guide line.
-            enable_line_crossing: If True, only counts at line.
-                                  If False (default), instantly tracks and counts unique eggs.
+            line_y: Optional visual inspection datum line (default Y=320).
+            enable_line_crossing: If True, only counts eggs passing the line.
+                                  If False (default), counts all unique eggs in frame.
             min_confirm_frames: Number of consistent frames required before counting an egg.
         """
         self.line_y = line_y
@@ -82,10 +82,28 @@ class EggTracker:
             center_x = (bbox[0] + bbox[2]) / 2.0
             center_y = (bbox[1] + bbox[3]) / 2.0
 
-            # 1. ByteTrack Master Track Identification
-            master_tid = raw_tid
+            # 1. Resolve Tracker Alias (Check if this track was previously linked to an existing egg)
+            master_tid = self.track_aliases.get(raw_tid, raw_tid)
 
-            # 2. Create or Update Master Record
+            # 2. Adaptive Spatial Deduplication (re-associate occluded / nudged eggs)
+            if master_tid not in self.egg_records:
+                matched_existing = None
+                min_dist = float("inf")
+                # Conservative deduplication distance so adjacent carton eggs (50-70px apart) are never merged
+                max_allow_dist = min(35.0, bw * 0.35)
+                for exist_tid, rec in self.egg_records.items():
+                    dx = center_x - rec.get("center_x", center_x)
+                    dy = center_y - rec.get("center_y", center_y)
+                    dist = math.hypot(dx, dy)
+                    if dist < max_allow_dist and dist < min_dist:
+                        min_dist = dist
+                        matched_existing = exist_tid
+
+                if matched_existing is not None:
+                    master_tid = matched_existing
+                    self.track_aliases[raw_tid] = master_tid
+
+            # 3. Create or Update Master Record
             initial_worst = 2 if (cls_id == 2 or conf < 0.75) else cls_id
             init_class_name = "SOUND (GRADE A)" if initial_worst == 2 else ("CRACKED SHELL" if initial_worst == 0 else "DIRTY SHELL")
 
@@ -105,6 +123,7 @@ class EggTracker:
                     "center_y": center_y,
                     "prev_y": center_y,
                     "counted": False,
+                    "line_crossed": False,
                     "frames_seen": 1,
                     "first_seen": current_time_str,
                     "last_seen": current_time_str,
@@ -170,19 +189,27 @@ class EggTracker:
 
             record = self.egg_records[master_tid]
             
-            # 4. Multi-Frame Confirmation Gate (Official registration only after min_confirm_frames)
+            # 4. Line crossing detection (bidirectional, box intersection, and crossing band)
+            prev_y = record.get("prev_y", center_y)
+            crossed_down = (prev_y < self.line_y and center_y >= self.line_y)
+            crossed_up = (prev_y > self.line_y and center_y <= self.line_y)
+            bbox_crosses = (bbox[1] <= self.line_y <= bbox[3])
+            near_line = (abs(center_y - self.line_y) <= max(22.0, bh * 0.45))
+
+            if crossed_down or crossed_up or bbox_crosses or near_line:
+                record["line_crossed"] = True
+
+            # 5. Multi-Frame Confirmation Gate (Official registration only after min_confirm_frames)
             if not record["counted"] and record["frames_seen"] >= self.min_confirm_frames:
                 if not self.enable_line_crossing:
                     self._register_egg_count(master_tid, record["worst_class"], record["grade"])
                 else:
-                    # Line crossing mode check
-                    prev_y = record.get("prev_y", center_y)
-                    if prev_y < self.line_y and center_y >= self.line_y:
+                    if record.get("line_crossed", False):
                         self._register_egg_count(master_tid, record["worst_class"], record["grade"])
 
             record["prev_y"] = center_y
 
-            # 5. Live in-frame tallies based on confirmed consensus class
+            # 6. Live in-frame tallies based on confirmed consensus class
             cur_class = record["worst_class"]
             active_in_frame += 1
             if cur_class == 0 and record["frames_seen"] >= self.min_confirm_frames:
@@ -192,7 +219,7 @@ class EggTracker:
             else:
                 active_good += 1
 
-            # 6. Build verified master display label
+            # 7. Build verified master display label
             cls_disp = "CRACKED" if cur_class == 0 else ("DIRTY" if cur_class == 1 else "GOOD")
             label_str = f"#{master_tid} {cls_disp} [{record['grade']}] {conf:.2f}"
             verified_labels.append(label_str)
@@ -222,7 +249,11 @@ class EggTracker:
 
     def get_summary(self):
         # Dynamically synchronize all cumulative counts with confirmed unique records
-        confirmed = [r for r in self.egg_records.values() if r.get("counted")]
+        if not self.enable_line_crossing:
+            confirmed = [r for r in self.egg_records.values() if r.get("counted") or r.get("frames_seen", 0) >= self.min_confirm_frames]
+        else:
+            confirmed = [r for r in self.egg_records.values() if r.get("line_crossed") and (r.get("counted") or r.get("frames_seen", 0) >= self.min_confirm_frames)]
+
         total = len(confirmed)
         cracked = sum(1 for r in confirmed if r.get("worst_class") == 0)
         dirty = sum(1 for r in confirmed if r.get("worst_class") == 1)
@@ -240,7 +271,9 @@ class EggTracker:
 
     def get_itemized_records(self):
         """Returns sorted list of all confirmed unique egg inspection records."""
-        # Only include eggs that reached minimum confirmation
-        records = [r for r in self.egg_records.values() if r.get("counted") or r.get("frames_seen", 0) >= self.min_confirm_frames]
+        if not self.enable_line_crossing:
+            records = [r for r in self.egg_records.values() if r.get("counted") or r.get("frames_seen", 0) >= self.min_confirm_frames]
+        else:
+            records = [r for r in self.egg_records.values() if r.get("line_crossed") and (r.get("counted") or r.get("frames_seen", 0) >= self.min_confirm_frames)]
         records.sort(key=lambda r: r["tracker_id"])
         return records

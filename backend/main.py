@@ -63,14 +63,39 @@ total_video_frames = 0
 last_raw_frame = None
 video_lock = threading.Lock()
 
-# Load sample eggs for simulation
+# Load sample eggs for simulation: Interleave predominantly Sound eggs with occasional defective eggs
 test_dir = PROJECT_ROOT / "data" / "datasets" / "v1" / "images" / "test"
 simulation_eggs = []
 if test_dir.exists():
+    sound_imgs = []
+    cracked_imgs = []
     for f in sorted(list(test_dir.glob("*.jpg"))):
         img = cv2.imread(str(f))
-        if img is not None:
-            simulation_eggs.append(cv2.resize(img, (220, 220)))
+        if img is None:
+            continue
+        resized = cv2.resize(img, (220, 220))
+        # Files ending in _2 are Grade A sound, _0 are cracked shell defects
+        if f.stem.endswith("_2"):
+            sound_imgs.append(resized)
+        elif f.stem.endswith("_0"):
+            cracked_imgs.append(resized)
+        else:
+            sound_imgs.append(resized)
+
+    # Realistic industrial sorting feed: 4 Sound eggs followed by 1 Defective egg
+    # Guarantees the simulation starts with Grade A sound eggs (high yield)
+    # and periodically triggers reject solenoid actuation for defectives!
+    s_idx = 0
+    c_idx = 0
+    total_samples = min(len(sound_imgs) + len(cracked_imgs), 60)
+    while len(simulation_eggs) < total_samples and (s_idx < len(sound_imgs) or c_idx < len(cracked_imgs)):
+        for _ in range(4):
+            if s_idx < len(sound_imgs):
+                simulation_eggs.append(sound_imgs[s_idx])
+                s_idx += 1
+        if c_idx < len(cracked_imgs):
+            simulation_eggs.append(cracked_imgs[c_idx])
+            c_idx += 1
 
 if not simulation_eggs:
     dummy_egg = np.full((220, 220, 3), 210, dtype=np.uint8)
@@ -189,7 +214,12 @@ def generate_video_stream():
 
         # Trigger real-time reject actuator event whenever a verified defective egg is registered
         for rec in list(pipe.tracker.egg_records.values()):
-            if rec.get("counted") and rec.get("worst_class") in [0, 1]:
+            is_valid_defect = rec.get("worst_class") in [0, 1] and rec.get("frames_seen", 0) >= pipe.tracker.min_confirm_frames
+            if pipe.tracker.enable_line_crossing:
+                is_valid_defect = is_valid_defect and rec.get("line_crossed", False)
+            else:
+                is_valid_defect = is_valid_defect and (rec.get("counted", False) or rec.get("frames_seen", 0) >= pipe.tracker.min_confirm_frames)
+            if is_valid_defect:
                 egg_id = rec.get("id", f"EG-{rec.get('tracker_id', 0):04d}")
                 if egg_id not in logged_reject_ids:
                     logged_reject_ids.add(egg_id)
@@ -564,7 +594,6 @@ def industrial_hmi_dashboard():
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EggVision — Optical Grading & Quality Sorter</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -921,7 +950,6 @@ def industrial_hmi_dashboard():
                             </div>
                         </div>
                     </div>
-                    <canvas id="sizeHistogram" class="hidden"></canvas>
                 </div>
 
                 <!-- 4. Rejection Actuator Log & Sensitivity Controls -->
@@ -960,8 +988,9 @@ def industrial_hmi_dashboard():
                         </div>
 
                         <div class="flex items-center space-x-1.5">
-                            <button onclick="toggleLineMode()" id="btn-trigger-mode" class="px-2 py-0.5 rounded bg-[#FAF9F6] hover:bg-[#F4F2EB] text-[#52525B] text-[10px] mono border border-[#D4D2CB] transition">
-                                Universal
+                            <button onclick="toggleLineMode()" id="btn-trigger-mode" class="px-2.5 py-0.5 rounded bg-[#FAF9F6] hover:bg-[#F4F2EB] text-[#18181B] font-semibold text-[10px] mono border border-[#D4D2CB] transition flex items-center gap-1.5" title="Switch between Universal In-Frame counting and Datum Line trigger counting">
+                                <i class="fa-solid fa-arrows-split-up-and-left text-[9px] text-[#71717A]"></i>
+                                <span id="trigger-mode-label">Mode: Universal</span>
                             </button>
                             <button onclick="toggleAudio()" id="btn-sound" class="p-1 px-1.5 rounded bg-[#FAF9F6] hover:bg-[#F4F2EB] text-[#166534] border border-[#D4D2CB] transition" title="Defect buzzer">
                                 <i class="fa-solid fa-volume-high text-xs"></i>
@@ -1197,14 +1226,15 @@ def industrial_hmi_dashboard():
             currentLineMode = !currentLineMode;
             fetch(`/api/set-line-mode?enable=${currentLineMode}`, { method: 'POST' });
             const btn = document.getElementById('btn-trigger-mode');
+            const label = document.getElementById('trigger-mode-label');
             if (currentLineMode) {
-                btn.innerText = "Line (Y=320)";
-                btn.className = "px-2 py-0.5 rounded bg-[#FFFBEB] border border-[#D97706] text-[#B45309] font-semibold text-[10px] mono";
-                showToast("Mode: Line crossing trigger active");
+                if (label) label.innerText = "Mode: Line (Y=320)";
+                btn.className = "px-2.5 py-0.5 rounded bg-[#FFFBEB] border border-[#D97706] text-[#B45309] font-bold text-[10px] mono flex items-center gap-1.5";
+                showToast("Mode: Line crossing inspection active (counts at datum line)");
             } else {
-                btn.innerText = "Universal";
-                btn.className = "px-2 py-0.5 rounded bg-[#FAF9F6] border border-[#D4D2CB] text-[#52525B] text-[10px] mono";
-                showToast("Mode: Universal instant in-frame active");
+                if (label) label.innerText = "Mode: Universal";
+                btn.className = "px-2.5 py-0.5 rounded bg-[#FAF9F6] border border-[#D4D2CB] text-[#18181B] font-semibold text-[10px] mono flex items-center gap-1.5";
+                showToast("Mode: Universal active (counts all unique eggs in frame)");
             }
         }
 
@@ -1279,14 +1309,6 @@ def industrial_hmi_dashboard():
                 pill.innerHTML = `<i class="fa-solid fa-flag-checkered text-[#166534]"></i><span>COMPLETED</span>`;
             }
         }
-
-        // Dummy Chart.js instance for internal listener safe calls
-        const ctx = document.getElementById('sizeHistogram').getContext('2d');
-        const sizeChart = new Chart(ctx, {
-            type: 'bar',
-            data: { labels: ['S', 'M', 'L'], datasets: [{ data: [0, 0, 0] }] },
-            options: { responsive: false }
-        });
 
         // WebSocket Telemetry Connection
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
